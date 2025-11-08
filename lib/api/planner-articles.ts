@@ -1,0 +1,440 @@
+import { API_CONFIG } from '@/lib/config/api'
+import { TokenManager } from '@/lib/utils/token-manager'
+
+/**
+ * Tipos para artículos del Content Planner
+ */
+
+export interface WordPressCategory {
+  id: number
+  name: string
+  slug: string
+}
+
+export interface PlannerArticleData {
+  title: string
+  h1_title: string
+  keyword: string
+  objective_phrase?: string
+  keywords_array?: string[]
+  content: string
+  sections_json?: SectionData[]
+  meta_description?: string
+  seo_data?: SEOAnalysisData
+  word_count?: number
+  status?: 'draft' | 'pending' | 'published' | 'rejected'
+  website_id?: number
+  language?: string
+  content_type?: 'planner' | 'manual' | 'imported'
+  wordpress_post_id?: number
+  featured_image_url?: string
+  wordpress_categories?: WordPressCategory[]
+  wordpress_status?: 'draft' | 'publish' | 'pending' | 'private' | 'future'
+}
+
+export interface SectionData {
+  heading: string
+  content: string
+  order?: number
+}
+
+export interface SEOAnalysisData {
+  score?: number
+  issues?: Array<{
+    type: string
+    message: string
+    severity: 'error' | 'warning' | 'info'
+  }>
+  keyword_density?: number
+  readability_score?: number
+}
+
+export interface ArticleTranslation {
+  id: number
+  article_id: number
+  language: string
+  title: string
+  h1_title: string | null
+  keyword: string
+  objective_phrase: string | null
+  keywords_array: string[]
+  slug: string
+  content: string
+  sections_json: SectionData[] | null
+  meta_description: string | null
+  seo_data: SEOAnalysisData | null
+  word_count: number
+  wordpress_post_id: number | null
+  featured_image_url: string | null
+  wordpress_categories: WordPressCategory[] | null
+  wordpress_status: 'draft' | 'publish' | 'pending' | 'private' | 'future' | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PlannerArticle extends PlannerArticleData {
+  id: number
+  slug: string
+  optimization_count: number
+  rejection_reason?: string
+  created_by: number
+  author_name?: string
+  reviewer_name?: string
+  publisher_name?: string
+  created_at: string
+  updated_at: string
+  submitted_at?: string
+  reviewed_at?: string
+  published_at?: string
+  available_languages?: string[]
+  translations?: Record<string, {
+    id: number
+    language: string
+    title: string
+    created_at: string
+  }>
+}
+
+/**
+ * Servicio de artículos del Content Planner
+ */
+class PlannerArticlesService {
+  private baseURL: string
+
+  constructor() {
+    this.baseURL = `${API_CONFIG.baseURL}/articles`
+  }
+
+  /**
+   * Obtener token de autenticación
+   */
+  private getAuthHeaders(): HeadersInit {
+    const token = TokenManager.getAccessToken()
+    
+    if (!token) {
+      console.warn('⚠️ No hay token de autenticación disponible')
+    }
+    
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    }
+  }
+
+  /**
+   * Crear nuevo artículo
+   */
+  async create(articleData: PlannerArticleData): Promise<PlannerArticle> {
+    try {
+      console.log('📤 Enviando datos del artículo:', articleData)
+      console.log('🌐 URL:', this.baseURL)
+      
+      const response = await fetch(this.baseURL, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(articleData)
+      })
+
+      console.log('📥 Respuesta HTTP:', response.status, response.statusText)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ Error de la API:', errorText)
+        
+        try {
+          const error = JSON.parse(errorText)
+          throw new Error(error.message || 'Error al crear el artículo')
+        } catch {
+          throw new Error(`Error ${response.status}: ${errorText}`)
+        }
+      }
+
+      const result = await response.json()
+      console.log('✅ Artículo creado:', result)
+      return result.data
+    } catch (error) {
+      console.error('💥 Error creating article:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Obtener todos los artículos del usuario
+   */
+  async getAll(filters?: {
+    status?: string
+    limit?: number
+    offset?: number
+  }): Promise<PlannerArticle[]> {
+    try {
+      const params = new URLSearchParams()
+      if (filters?.status) params.append('status', filters.status)
+      if (filters?.limit) params.append('limit', filters.limit.toString())
+      if (filters?.offset) params.append('offset', filters.offset.toString())
+
+      const url = `${this.baseURL}?${params.toString()}`
+      const response = await fetch(url, {
+        headers: this.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al obtener artículos')
+      }
+
+      const result = await response.json()
+      return result.data || []
+    } catch (error) {
+      console.error('Error fetching articles:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Obtener artículo por ID
+   */
+  async getById(id: number): Promise<PlannerArticle> {
+    try {
+      const response = await fetch(`${this.baseURL}/${id}`, {
+        headers: this.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Artículo no encontrado')
+        }
+        throw new Error('Error al obtener el artículo')
+      }
+
+      const result = await response.json()
+      return result.data
+    } catch (error) {
+      console.error('Error fetching article:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Actualizar artículo
+   */
+  async update(id: number, articleData: Partial<PlannerArticleData>): Promise<PlannerArticle> {
+    try {
+      const response = await fetch(`${this.baseURL}/${id}`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(articleData)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al actualizar el artículo')
+      }
+
+      const result = await response.json()
+      return result.data
+    } catch (error) {
+      console.error('Error updating article:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Eliminar artículo
+   */
+  async delete(id: number): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseURL}/${id}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al eliminar el artículo')
+      }
+    } catch (error) {
+      console.error('Error deleting article:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Enviar artículo para aprobación
+   */
+  async submit(id: number): Promise<PlannerArticle> {
+    try {
+      const response = await fetch(`${this.baseURL}/${id}/submit`, {
+        method: 'POST',
+        headers: this.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al enviar el artículo')
+      }
+
+      const result = await response.json()
+      return result.data
+    } catch (error) {
+      console.error('Error submitting article:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Incrementar contador de optimización
+   */
+  async incrementOptimization(id: number): Promise<PlannerArticle> {
+    try {
+      const article = await this.getById(id)
+      return await this.update(id, {
+        optimization_count: (article.optimization_count || 0) + 1
+      } as Partial<PlannerArticleData>)
+    } catch (error) {
+      console.error('Error incrementing optimization count:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Marcar como publicado en WordPress
+   */
+  async markAsPublishedToWordPress(id: number, wordpressPostId: number): Promise<PlannerArticle> {
+    try {
+      return await this.update(id, {
+        wordpress_post_id: wordpressPostId,
+        status: 'published'
+      } as Partial<PlannerArticleData>)
+    } catch (error) {
+      console.error('Error marking as published:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Obtener estadísticas del editor
+   */
+  async getEditorStats(): Promise<{
+    total_articles: number
+    draft_count: number
+    pending_count: number
+    published_count: number
+    rejected_count: number
+    total_words: number
+    approval_rate: number
+  }> {
+    try {
+      const response = await fetch(`${this.baseURL}/stats`, {
+        headers: this.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al obtener estadísticas')
+      }
+
+      const result = await response.json()
+      return result.data
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Obtener traducción específica
+   */
+  async getTranslation(articleId: number, language: string): Promise<ArticleTranslation> {
+    try {
+      const response = await fetch(`${this.baseURL}/${articleId}/translations/${language}`, {
+        headers: this.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al obtener traducción')
+      }
+
+      const result = await response.json()
+      return result.data
+    } catch (error) {
+      console.error('Error getting translation:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Crear nueva traducción
+   */
+  async createTranslation(
+    articleId: number,
+    translation: Partial<ArticleTranslation>
+  ): Promise<ArticleTranslation> {
+    try {
+      const response = await fetch(`${this.baseURL}/${articleId}/translations`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(translation)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al crear traducción')
+      }
+
+      const result = await response.json()
+      return result.data
+    } catch (error) {
+      console.error('Error creating translation:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Actualizar traducción
+   */
+  async updateTranslation(
+    articleId: number,
+    language: string,
+    translation: Partial<ArticleTranslation>
+  ): Promise<ArticleTranslation> {
+    try {
+      const response = await fetch(`${this.baseURL}/${articleId}/translations/${language}`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(translation)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al actualizar traducción')
+      }
+
+      const result = await response.json()
+      return result.data
+    } catch (error) {
+      console.error('Error updating translation:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Eliminar traducción
+   */
+  async deleteTranslation(articleId: number, language: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseURL}/${articleId}/translations/${language}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Error al eliminar traducción')
+      }
+    } catch (error) {
+      console.error('Error deleting translation:', error)
+      throw error
+    }
+  }
+}
+
+export const plannerArticlesService = new PlannerArticlesService()
