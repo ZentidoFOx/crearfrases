@@ -52,6 +52,7 @@ export default function ArticleEditorPage() {
   const [translating, setTranslating] = useState(false)
   const [translationProgress, setTranslationProgress] = useState(0)
   const [currentTranslationStep, setCurrentTranslationStep] = useState('')
+  const [translatingWithoutStream, setTranslatingWithoutStream] = useState(false)
   const [humanizing, setHumanizing] = useState(false)
   const [humanizeProgress, setHumanizeProgress] = useState(0)
   const [currentHumanizeStep, setCurrentHumanizeStep] = useState('')
@@ -338,8 +339,8 @@ export default function ArticleEditorPage() {
       
       const credentials = {
         siteUrl: activeWebsite.url,
-        username: 'arturo',
-        applicationPassword: 'zgHS Nmvp qnF9 0F70 Aw5s Jnir'
+        username: 'ruben',
+        applicationPassword: 'VUN3 Dy9I NU5Y PQcP TbJS h8nC'
       }
       
       // Mapa para relacionar traducciones en WordPress
@@ -635,6 +636,15 @@ export default function ArticleEditorPage() {
               console.log(`🌐 Traducción chunk: +${chunk.length} chars | Total: ${accumulated.length}`)
             }
           }
+        },
+        // Opciones con fallback
+        {
+          modelId: selectedHumanizeModelId || 1,
+          onFallbackToNormal: () => {
+            // 🔥 Cuando se detecta fallback, mostrar skeleton
+            console.log('🔄 Activando modo sin streaming con skeleton para traducción...')
+            setTranslatingWithoutStream(true)
+          }
         }
       )
       
@@ -723,6 +733,7 @@ export default function ArticleEditorPage() {
       alert(`❌ Error al traducir:\n\n${errorMessage}\n\nPor favor, verifica:\n- Tu conexión a internet\n- API key de Gemini configurada\n- Límite de cuota no excedido`)
     } finally {
       setTranslating(false)
+      setTranslatingWithoutStream(false)
     }
   }
 
@@ -965,14 +976,18 @@ export default function ArticleEditorPage() {
         <div className="flex-1 overflow-y-auto">
           <div className="p-0">
             <div className="max-w-5xl mx-auto">
-              {humanizingWithoutStream ? (
-                // Skeleton cuando está humanizando sin streaming
+              {(humanizingWithoutStream || translatingWithoutStream) ? (
+                // Skeleton cuando está humanizando o traduciendo sin streaming
                 <div className="p-8 space-y-6">
                   <div className="flex items-center justify-center mb-8">
                     <div className="text-center">
                       <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" style={{ color: '#009689' }} />
-                      <p className="text-sm font-medium text-gray-600">Humanizando contenido...</p>
-                      <p className="text-xs text-gray-500 mt-1">{currentHumanizeStep}</p>
+                      <p className="text-sm font-medium text-gray-600">
+                        {humanizingWithoutStream ? 'Humanizando contenido...' : 'Traduciendo contenido...'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {humanizingWithoutStream ? currentHumanizeStep : currentTranslationStep}
+                      </p>
                     </div>
                   </div>
                   

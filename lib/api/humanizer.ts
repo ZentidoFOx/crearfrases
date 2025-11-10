@@ -594,7 +594,15 @@ ${content}
 
       console.log('✅ [HUMANIZE-NORMAL] Contenido optimizado recibido')
       
-      const optimizedContent = result.data?.text || result.data?.content || ''
+      // El endpoint /api/ai/generate devuelve data.content
+      const optimizedContent = result.data?.content || result.data?.text || ''
+      
+      if (!optimizedContent || typeof optimizedContent !== 'string') {
+        console.error('❌ [HUMANIZE-NORMAL] Formato de respuesta inválido:', result)
+        throw new Error('Invalid model response: expected content field with text')
+      }
+      
+      console.log('📄 [HUMANIZE-NORMAL] Contenido recibido, longitud:', optimizedContent.length)
 
       onProgress?.('Analizando mejoras aplicadas...', 90)
 
