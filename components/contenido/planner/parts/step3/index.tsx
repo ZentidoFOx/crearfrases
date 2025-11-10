@@ -27,7 +27,8 @@ export function Step3Content({
   h1Title: initialH1Title, 
   description, 
   keywords, 
-  objectivePhrase, 
+  objectivePhrase,
+  modelId,
   onContentGenerated, 
   onBack 
 }: Step3ContentProps) {
@@ -42,7 +43,7 @@ export function Step3Content({
   const [h1Title, setH1Title] = useState(initialH1Title || title)
   
   // Hooks
-  const contentGeneration = useContentGeneration()
+  const contentGeneration = useContentGeneration(modelId)
   const saveArticle = useSaveArticle()
 
   const handleGenerateOutline = async () => {
@@ -191,6 +192,11 @@ export function Step3Content({
           {/* Loading State - Generating Content */}
           {contentGeneration.isGenerating && (
             <LoadingContent generationStep={contentGeneration.generationStep} />
+          )}
+          
+          {/* Success Message - Generation Complete */}
+          {!contentGeneration.isGenerating && contentGeneration.generationStep === 'done' && (
+            <LoadingContent generationStep="done" />
           )}
         </div>
       </div>

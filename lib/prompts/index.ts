@@ -5,3 +5,5 @@
 
 export * from './keyword-suggestions'
 export * from './title-generation'
+export * from './outline-generation'
+export * from './content-generation'

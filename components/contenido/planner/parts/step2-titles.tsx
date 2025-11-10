@@ -192,28 +192,69 @@ export function Step2Titles({ keyword, modelId, additionalKeywords: initialAddit
     setError('')
 
     try {
-      const generatedTitles = await aiService.generateTitlesComplete(keyword, 5, additionalKeywords, modelId)
+      console.log('🚀 [STEP2] Iniciando generación de títulos con streaming...')
+      console.log('🔑 [STEP2] Keyword:', keyword)
+      console.log('📊 [STEP2] Keywords adicionales:', additionalKeywords)
+      console.log('🔄 [STEP2] Modo append:', append)
       
-      // Recalculate SEO scores with the real algorithm
-      const titlesWithRealScores = generatedTitles.map(title => {
-        const realScore = calculateRealSEOScore(title)
-        return {
-          ...title,
-          seoScore: {
-            ...title.seoScore,
-            overall: realScore // Add overall score calculated with real algorithm
+      // Intentar con streaming primero
+      const streamingSuccess = await aiService.generateTitlesStreaming(
+        keyword,
+        5,
+        additionalKeywords,
+        modelId,
+        (newTitle) => {
+          console.log('🎯 [STEP2] Nuevo título recibido:', newTitle.title)
+          
+          // Calcular score real
+          const realScore = calculateRealSEOScore(newTitle)
+          const titleWithScore = {
+            ...newTitle,
+            seoScore: {
+              ...newTitle.seoScore,
+              overall: realScore
+            }
           }
+          
+          // Siempre agregar al array actual (ya limpiamos antes si append=false)
+          setTitles(prev => {
+            const newTitles = [...prev, titleWithScore]
+            console.log('📋 [STEP2] Añadiendo título. Total:', newTitles.length)
+            return newTitles
+          })
         }
-      })
+      )
       
-      if (append) {
-        // Add new titles to existing ones
-        setTitles(prev => [...prev, ...titlesWithRealScores])
+      // Si el streaming no fue exitoso, usar el método normal
+      if (!streamingSuccess) {
+        console.log('⚠️ [STEP2] Streaming no soportado, usando método normal...')
+        
+        const generatedTitles = await aiService.generateTitlesComplete(keyword, 5, additionalKeywords, modelId)
+        
+        console.log('✅ [STEP2] Títulos generados con método normal:', generatedTitles.length)
+        
+        // Recalculate SEO scores with the real algorithm
+        const titlesWithRealScores = generatedTitles.map(title => {
+          const realScore = calculateRealSEOScore(title)
+          return {
+            ...title,
+            seoScore: {
+              ...title.seoScore,
+              overall: realScore
+            }
+          }
+        })
+        
+        if (append) {
+          setTitles(prev => [...prev, ...titlesWithRealScores])
+        } else {
+          setTitles(titlesWithRealScores)
+        }
       } else {
-        // Replace all titles
-        setTitles(titlesWithRealScores)
+        console.log('✅ [STEP2] Streaming completado. Total de títulos:', titles.length)
       }
     } catch (err: any) {
+      console.error('❌ [STEP2] Error generando títulos:', err)
       setError(err.message || 'Error al generar títulos')
     } finally {
       setIsGenerating(false)

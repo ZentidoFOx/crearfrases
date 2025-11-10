@@ -186,6 +186,7 @@ export function Step1Keyword({ onSubmit, initialKeyword = '', initialData }: Ste
   const [isGeneratingSimilar, setIsGeneratingSimilar] = useState(false)
   const [generatingSimilarForKeyword, setGeneratingSimilarForKeyword] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [aiError, setAiError] = useState('')
   const [yoastResults, setYoastResults] = useState<SearchResult[]>(initialData?.yoastResults || [])
   const [aiSuggestions, setAiSuggestions] = useState<string[]>(initialData?.aiSuggestions || [])
   const [similarSuggestions, setSimilarSuggestions] = useState<string[]>([])
@@ -318,50 +319,125 @@ export function Step1Keyword({ onSubmit, initialKeyword = '', initialData }: Ste
 
   const generateAISuggestions = async (baseKeyword: string, existingResults: SearchResult[]) => {
     if (!selectedModel) {
-      console.error('No model selected for AI suggestions')
       return
     }
 
     setIsGeneratingSuggestions(true)
+    setAiError('')
+    setAiSuggestions([]) // Limpiar sugerencias anteriores
+    
     try {
       // Extract existing keywords from API results
       const existingKeywords = existingResults.map(r => (r.focus_keyword || '').toLowerCase())
       
       // Generate new keyword suggestions using selected AI model
       const modelId = parseInt(selectedModel)
-      const suggestions = await aiService.generateKeywordSuggestions(baseKeyword, existingKeywords, modelId)
-      setAiSuggestions(suggestions)
+      const collectedSuggestions: string[] = []
       
-      // Analizar automáticamente algunas sugerencias (primeras 5)
-      if (suggestions.length > 0 && activeWebsite) {
-        // Analizar las primeras 5 sugerencias automáticamente
-        const suggestionsToAnalyze = suggestions.slice(0, 5)
-        
-        for (const suggestion of suggestionsToAnalyze) {
-          try {
-            const results = await wordpressAnalyticsService.searchFocusKeywords(
+      // NO cambiar de tab aún, mantener en el tab actual (existente)
+      
+      // Intentar con streaming primero
+      console.log('🚀 [STEP1] Iniciando generación con streaming...')
+      console.log('🔑 [STEP1] Keyword base:', baseKeyword)
+      console.log('📊 [STEP1] Keywords existentes:', existingKeywords.length)
+      
+      const streamingSuccess = await aiService.generateKeywordSuggestionsStreaming(
+        baseKeyword, 
+        existingKeywords, 
+        modelId,
+        (newSuggestion) => {
+          // Callback ejecutado por cada nueva sugerencia
+          console.log('🎯 [STEP1] Nueva sugerencia recibida:', newSuggestion)
+          console.log('📏 [STEP1] Longitud:', newSuggestion.length)
+          
+          collectedSuggestions.push(newSuggestion)
+          setAiSuggestions([...collectedSuggestions])
+          console.log('✅ [STEP1] Total sugerencias acumuladas:', collectedSuggestions.length)
+          
+          // Cambiar al tab de sugerencias cuando llegue la PRIMERA keyword
+          if (collectedSuggestions.length === 1) {
+            console.log('📑 [STEP1] Cambiando a tab de sugerencias (primera keyword recibida)')
+            setActiveResultsTab('suggestions')
+          }
+          
+          // Analizar automáticamente las primeras 5 sugerencias
+          if (collectedSuggestions.length <= 5 && activeWebsite) {
+            console.log('🔍 [STEP1] Analizando disponibilidad de:', newSuggestion)
+            // Analizar en background sin esperar
+            wordpressAnalyticsService.searchFocusKeywords(
               activeWebsite.url,
-              suggestion,
+              newSuggestion,
               { lang: 'es' }
-            )
-            
-            setSuggestionAnalysisResults(prev => ({
-              ...prev,
-              [suggestion]: results || []
-            }))
-          } catch (err) {
-            console.error(`Error analizando ${suggestion}:`, err)
+            ).then(results => {
+              console.log('✅ [STEP1] Análisis completado para:', newSuggestion, '- Resultados:', results?.length || 0)
+              setSuggestionAnalysisResults(prev => ({
+                ...prev,
+                [newSuggestion]: results || []
+              }))
+            }).catch(err => {
+              console.log('⚠️ [STEP1] Error analizando:', newSuggestion)
+            })
+          }
+        }
+      )
+      
+      // Si el streaming no fue exitoso, usar el método normal
+      if (!streamingSuccess) {
+        console.log('⚠️ [STEP1] Streaming no soportado, usando método normal...')
+        
+        const suggestions = await aiService.generateKeywordSuggestions(
+          baseKeyword, 
+          existingKeywords, 
+          modelId
+        )
+        
+        console.log('✅ [STEP1] Sugerencias generadas con método normal:', suggestions.length)
+        setAiSuggestions(suggestions)
+        
+        // Cambiar al tab de sugerencias cuando termine la generación normal
+        if (suggestions.length > 0) {
+          console.log('📑 [STEP1] Cambiando a tab de sugerencias (generación completada)')
+          setActiveResultsTab('suggestions')
+        }
+        
+        // Analizar automáticamente las primeras 5 sugerencias
+        if (suggestions.length > 0 && activeWebsite) {
+          const suggestionsToAnalyze = suggestions.slice(0, 5)
+          
+          for (const suggestion of suggestionsToAnalyze) {
+            try {
+              const results = await wordpressAnalyticsService.searchFocusKeywords(
+                activeWebsite.url,
+                suggestion,
+                { lang: 'es' }
+              )
+              
+              setSuggestionAnalysisResults(prev => ({
+                ...prev,
+                [suggestion]: results || []
+              }))
+            } catch (err) {
+              // Ignorar errores de análisis
+            }
           }
         }
       }
       
-      // Cambiar automáticamente al tab de sugerencias cuando termine
-      if (suggestions.length > 0) {
-        setActiveResultsTab('suggestions')
-      }
     } catch (err: any) {
-      console.error('Error generating AI suggestions:', err)
       setAiSuggestions([])
+      
+      // Extraer mensaje de error amigable
+      let errorMessage = 'Error al generar sugerencias con IA'
+      if (err.message) {
+        if (err.message.includes('does not exist')) {
+          errorMessage = `El modelo seleccionado no existe o no está disponible`
+        } else if (err.message.includes('API key')) {
+          errorMessage = 'Error con la clave API del modelo'
+        } else {
+          errorMessage = err.message
+        }
+      }
+      setAiError(errorMessage)
     } finally {
       setIsGeneratingSuggestions(false)
     }
@@ -920,6 +996,22 @@ export function Step1Keyword({ onSubmit, initialKeyword = '', initialData }: Ste
                 {/* Sugerencias de IA Tab */}
                 {activeResultsTab === 'suggestions' && (
                   <div>
+                    {/* Error state */}
+                    {aiError && aiSuggestions.length === 0 && !isGeneratingSuggestions ? (
+                      <Alert className="mb-4 border-red-200 bg-red-50">
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                        <AlertDescription className="text-red-800">
+                          <span className="font-semibold">Error al generar sugerencias:</span>
+                          <br />
+                          {aiError}
+                          <br />
+                          <span className="text-sm text-red-600 mt-1 block">
+                            Por favor, verifica que el modelo de IA esté correctamente configurado.
+                          </span>
+                        </AlertDescription>
+                      </Alert>
+                    ) : null}
+                    
                     {/* Loading state mientras se generan sugerencias */}
                     {isGeneratingSuggestions && aiSuggestions.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-16">

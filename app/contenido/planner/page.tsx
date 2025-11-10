@@ -89,6 +89,7 @@ export default function ContentPlannerPage() {
                 description={selectedTitleData?.description}
                 keywords={selectedTitleData?.keywords}
                 objectivePhrase={selectedTitleData?.objectivePhrase}
+                modelId={selectedModelId}
                 onContentGenerated={handleContentGenerated}
                 onBack={() => setCurrentStep(2)}
               />

@@ -5,9 +5,14 @@ import { flushSync } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Loader2, AlertCircle, BarChart3, Target, FileText, RefreshCw } from 'lucide-react'
 import { CircularProgress } from '@/components/ui/circular-progress'
+import { Header } from '@/components/header'
+import { Sidebar } from '@/components/sidebar'
 import { plannerArticlesService, type PlannerArticle } from '@/lib/api/planner-articles'
+import { aiModelsService } from '@/lib/api/ai-models'
 import { markdownToHtml, htmlToMarkdown } from '@/components/contenido/planner/parts/step3/utils'
 import { WysiwygEditor } from '@/components/editor'
 import { useOptimization } from '@/components/contenido/planner/parts/step3/hooks/useOptimization'
@@ -40,7 +45,6 @@ export default function ArticleEditorPage() {
   const [postStatus, setPostStatus] = useState<'publish' | 'draft'>('publish')
   const [publishProgress, setPublishProgress] = useState(0)
   const [currentPublishStep, setCurrentPublishStep] = useState('')
-  const [publishedPostId, setPublishedPostId] = useState<number>()
   const [publishedPostUrl, setPublishedPostUrl] = useState<string>()
   const [showGooglePreview, setShowGooglePreview] = useState(false)
   const [currentLanguage, setCurrentLanguage] = useState<string>('es')
@@ -48,12 +52,18 @@ export default function ArticleEditorPage() {
   const [translating, setTranslating] = useState(false)
   const [translationProgress, setTranslationProgress] = useState(0)
   const [currentTranslationStep, setCurrentTranslationStep] = useState('')
-  const [targetLanguageName, setTargetLanguageName] = useState('')
-  const [currentTranslationData, setCurrentTranslationData] = useState<any>(null)
   const [humanizing, setHumanizing] = useState(false)
   const [humanizeProgress, setHumanizeProgress] = useState(0)
   const [currentHumanizeStep, setCurrentHumanizeStep] = useState('')
+  const [humanizingWithoutStream, setHumanizingWithoutStream] = useState(false)
+  const [currentTranslationData, setCurrentTranslationData] = useState<any>(null)
+  const [targetLanguageName, setTargetLanguageName] = useState<string>('')
+  const [selectedHumanizeModelId, setSelectedHumanizeModelId] = useState<number | null>(null)
+  const [showModelSelector, setShowModelSelector] = useState(false)
+  const [publishedPostId, setPublishedPostId] = useState<number>()
   const [lastUpdateTime, setLastUpdateTime] = useState(0)
+  const [availableModels, setAvailableModels] = useState<any[]>([])
+  const [isLoadingModels, setIsLoadingModels] = useState(false)
 
   const articleId = params?.id ? parseInt(params.id as string) : null
   const { activeWebsite } = useWebsite()
@@ -68,19 +78,22 @@ export default function ArticleEditorPage() {
     displayArticle // Pasar datos del artículo para restaurar imagen y categorías
   )
   const languagesHook = useLanguages(activeWebsite?.url)
-
   useEffect(() => {
     if (articleId) loadArticle()
   }, [articleId])
+
+  useEffect(() => {
+    loadModels()
+  }, [])
 
   useEffect(() => {
     if (article?.content) {
       // Convertir markdown a HTML para el editor WYSIWYG
       const htmlContent = markdownToHtml(article.content)
       setEditedContent(htmlContent)
-      setEditorKey(prev => prev + 1)
+      setEditorKey(prev => prev + 1) // Forzar re-render del editor
     }
-  }, [article?.content])
+  }, [article?.content, articleId]) // Agregar articleId como dependencia para re-renderizar al cambiar de artículo
 
   // Restaurar estado de publicación cuando se carga el artículo
   useEffect(() => {
@@ -108,6 +121,24 @@ export default function ArticleEditorPage() {
       setError(err instanceof Error ? err.message : 'Error al cargar el artículo')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadModels = async () => {
+    setIsLoadingModels(true)
+    try {
+      const models = await aiModelsService.getActiveModels()
+      setAvailableModels(models)
+      
+      // Seleccionar el modelo por defecto automáticamente
+      const defaultModel = models.find(m => m.is_default)
+      if (defaultModel && !selectedHumanizeModelId) {
+        setSelectedHumanizeModelId(defaultModel.id)
+      }
+    } catch (err) {
+      console.error('Error loading models:', err)
+    } finally {
+      setIsLoadingModels(false)
     }
   }
 
@@ -736,6 +767,13 @@ export default function ArticleEditorPage() {
   const handleHumanize = async () => {
     if (!article || !articleId) return
     
+    // Preguntar por el modelo AI primero
+    if (!selectedHumanizeModelId) {
+      alert('Por favor, selecciona un modelo de IA primero')
+      setShowModelSelector(true)
+      return
+    }
+    
     if (!confirm('¿Humanizar el contenido generado por IA?\n\nVerás el contenido humanizándose en TIEMPO REAL mientras la IA trabaja.')) return
     
     setHumanizing(true)
@@ -765,8 +803,9 @@ export default function ArticleEditorPage() {
         markdownContent,
         displayArticle.keyword || '',
         displayArticle.title || '',
+        selectedHumanizeModelId,
         // Callback de progreso
-        (step, progress) => {
+        (step: string, progress: number) => {
           setCurrentHumanizeStep(step)
           // Asegurar que el progreso esté entre 0-100 y sea entero
           const clampedProgress = Math.min(100, Math.max(0, Math.round(progress)))
@@ -792,7 +831,12 @@ export default function ArticleEditorPage() {
         // Opciones
         {
           tone: tone,
-          targetAudience: 'viajeros y amantes de la naturaleza'
+          targetAudience: 'viajeros y amantes de la naturaleza',
+          onFallbackToNormal: () => {
+            // 🔥 Cuando se detecta fallback, mostrar skeleton
+            console.log('🔄 Activando modo sin streaming con skeleton...')
+            setHumanizingWithoutStream(true)
+          }
         }
       )
       
@@ -849,14 +893,13 @@ export default function ArticleEditorPage() {
       }, 1500)
       
     } catch (error: any) {
-      console.error('Error humanizando:', error)
-      // Asegurar reset de estados en caso de error
+      console.error('Error humanizando contenido:', error)
+      alert(`Error: ${error.message}`)
+    } finally {
       setHumanizing(false)
       setHumanizeProgress(0)
       setCurrentHumanizeStep('')
-      alert(`❌ Error al humanizar contenido:\n\n${error.message || 'Error desconocido'}`)
-    } finally {
-      // Backup: asegurar que el estado se desactive
+      setHumanizingWithoutStream(false)
       setTimeout(() => {
         setHumanizing(false)
       }, 100)
@@ -889,36 +932,83 @@ export default function ArticleEditorPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <ArticleHeader
-        article={article}
-        saving={saving}
-        deleting={deleting}
-        humanizing={humanizing}
-        currentLanguage={currentLanguage}
-        loadingTranslation={loadingTranslation}
-        onSave={handleSave}
-        onSubmit={handleSubmit}
-        onDelete={handleDelete}
-        showLanguageMenu={showLanguageMenu}
-        setShowLanguageMenu={setShowLanguageMenu}
-        languagesHook={languagesHook}
-        onTranslate={handleTranslate}
-        onLanguageChange={handleLanguageChange}
-        onGooglePreview={() => setShowGooglePreview(true)}
-        onDeleteTranslation={handleDeleteTranslation}
-        onHumanize={handleHumanize}
-      />
+      <Header />
+      <Sidebar />
+      
+      {/* Main Content with left margin for sidebar */}
+      <main className="ml-20 pt-0">
+        <ArticleHeader
+          article={article}
+          saving={saving}
+          deleting={deleting}
+          humanizing={humanizing}
+          currentLanguage={currentLanguage}
+          loadingTranslation={loadingTranslation}
+          selectedModelId={selectedHumanizeModelId}
+          availableModels={availableModels}
+          isLoadingModels={isLoadingModels}
+          onModelChange={setSelectedHumanizeModelId}
+          onSave={handleSave}
+          onSubmit={handleSubmit}
+          onDelete={handleDelete}
+          showLanguageMenu={showLanguageMenu}
+          setShowLanguageMenu={setShowLanguageMenu}
+          languagesHook={languagesHook}
+          onTranslate={handleTranslate}
+          onLanguageChange={handleLanguageChange}
+          onGooglePreview={() => setShowGooglePreview(true)}
+          onDeleteTranslation={handleDeleteTranslation}
+          onHumanize={handleHumanize}
+        />
 
-      <div className="flex h-[calc(100vh-60px)]">
+        <div className="flex h-[calc(100vh-60px)]">
         <div className="flex-1 overflow-y-auto">
-          <div className="p-6">
+          <div className="p-0">
             <div className="max-w-5xl mx-auto">
-              <WysiwygEditor
-                key={editorKey}
-                initialContent={editedContent}
-                onChange={setEditedContent}
-                showImagePicker={true}
-              />
+              {humanizingWithoutStream ? (
+                // Skeleton cuando está humanizando sin streaming
+                <div className="p-8 space-y-6">
+                  <div className="flex items-center justify-center mb-8">
+                    <div className="text-center">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" style={{ color: '#009689' }} />
+                      <p className="text-sm font-medium text-gray-600">Humanizando contenido...</p>
+                      <p className="text-xs text-gray-500 mt-1">{currentHumanizeStep}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Skeleton del contenido */}
+                  <Skeleton className="h-12 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                  
+                  <Skeleton className="h-8 w-2/3 mt-8" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  
+                  <Skeleton className="h-8 w-1/2 mt-8" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                  <Skeleton className="h-4 w-full" />
+                  
+                  <Skeleton className="h-8 w-3/5 mt-8" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              ) : (
+                <WysiwygEditor
+                  key={editorKey}
+                  initialContent={editedContent}
+                  onChange={setEditedContent}
+                  showImagePicker={true}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -1030,6 +1120,7 @@ export default function ArticleEditorPage() {
         progress={publishProgress}
         currentStep={currentPublishStep}
       />
+      </main>
     </div>
   )
 }

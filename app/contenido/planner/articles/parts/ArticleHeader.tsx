@@ -19,7 +19,8 @@ import {
   Languages,
   AlertTriangle,
   X,
-  Sparkles
+  Sparkles,
+  Cpu
 } from 'lucide-react'
 
 interface ArticleHeaderProps {
@@ -29,6 +30,10 @@ interface ArticleHeaderProps {
   humanizing?: boolean
   currentLanguage?: string
   loadingTranslation?: boolean
+  selectedModelId?: number | null
+  availableModels?: any[]
+  isLoadingModels?: boolean
+  onModelChange?: (modelId: number) => void
   onSave: () => void
   onSubmit: () => void
   onDelete: () => void
@@ -49,6 +54,10 @@ export function ArticleHeader({
   humanizing = false,
   currentLanguage = 'es',
   loadingTranslation = false,
+  selectedModelId = null,
+  availableModels = [],
+  isLoadingModels = false,
+  onModelChange,
   onSave,
   onSubmit,
   onDelete,
@@ -64,9 +73,13 @@ export function ArticleHeader({
   const router = useRouter()
   const [showTranslateModal, setShowTranslateModal] = useState(false)
   const [selectedLangToTranslate, setSelectedLangToTranslate] = useState<{ code: string, name: string } | null>(null)
+  const [showModelMenu, setShowModelMenu] = useState(false)
   
   // Verificar si estamos viendo una traducción (no el idioma principal)
   const isViewingTranslation = currentLanguage !== (article.language || 'es')
+  
+  // Obtener el modelo seleccionado
+  const selectedModel = availableModels.find(m => m.id === selectedModelId)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -89,7 +102,7 @@ export function ArticleHeader({
   }
 
   return (
-    <div className="bg-white border-b sticky top-0 z-50">
+    <div className="bg-white border-b">
       <div className="px-6 py-2.5 flex items-center justify-between">
         {/* Left */}
         <div className="flex items-center gap-4">
@@ -107,8 +120,106 @@ export function ArticleHeader({
             {getStatusLabel(article.status)}
           </Badge>
 
-          {/* Language Selector */}
+          {/* AI Model Selector */}
           <div className="relative ml-4">
+            <button
+              onClick={() => setShowModelMenu(!showModelMenu)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg hover:border-purple-300 transition-all"
+            >
+              <Sparkles className="h-4 w-4 text-purple-600" />
+              <span className="text-sm font-semibold text-gray-900">
+                {selectedModel ? selectedModel.name : 'Modelo de IA'}
+              </span>
+              {isLoadingModels ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-600" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 text-gray-600" />
+              )}
+            </button>
+
+            {showModelMenu && (
+              <>
+                {/* Overlay para cerrar al hacer clic fuera */}
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowModelMenu(false)}
+                />
+                
+                <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                  {isLoadingModels ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                    </div>
+                  ) : (
+                    <>
+                      {/* Header */}
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-purple-600" />
+                          <span className="text-sm font-bold text-gray-900">Modelo de IA</span>
+                        </div>
+                      </div>
+
+                      {/* Modelos */}
+                      <div className="p-2 max-h-80 overflow-y-auto">
+                        {availableModels.length === 0 ? (
+                          <div className="text-center py-4">
+                            <p className="text-sm text-gray-500">No hay modelos disponibles</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {availableModels.map((model: any) => {
+                              const isGoogle = model.provider === 'Google'
+                              const isOpenAI = model.provider === 'OpenAI'
+                              const dotColor = isGoogle ? '#4285F4' : isOpenAI ? '#10a37f' : '#9333ea'
+                              
+                              return (
+                                <div
+                                  key={model.id}
+                                  onClick={() => {
+                                    if (onModelChange) onModelChange(model.id)
+                                    setShowModelMenu(false)
+                                  }}
+                                  className={`flex items-center justify-between px-3 py-3 rounded-lg cursor-pointer transition-all ${
+                                    selectedModelId === model.id 
+                                      ? 'bg-gray-50' 
+                                      : 'hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    {/* Dot indicator - pequeño */}
+                                    <div 
+                                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: dotColor }}
+                                    />
+                                    
+                                    {/* Nombre y proveedor en la misma línea */}
+                                    <span className="text-sm text-gray-900 truncate leading-none">
+                                      {model.name}
+                                    </span>
+                                    <span className="text-xs text-gray-400 flex-shrink-0 leading-none">
+                                      ({model.provider})
+                                    </span>
+                                  </div>
+                                  
+                                  {selectedModelId === model.id && (
+                                    <Check className="h-4 w-4 text-gray-900 flex-shrink-0 ml-2" />
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Language Selector */}
+          <div className="relative ml-2">
             <button
               onClick={() => setShowLanguageMenu(!showLanguageMenu)}
               className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-all"
@@ -374,7 +485,7 @@ export function ArticleHeader({
                 className="h-8 px-4 border-gray-200 text-gray-700 hover:bg-gray-50"
               >
                 <Eye className="h-3.5 w-3.5 mr-1.5" />
-                Vista Previa
+                Preview
               </Button>
 
               <Button
@@ -404,14 +515,13 @@ export function ArticleHeader({
                 size="sm"
                 onClick={onDeleteTranslation}
                 disabled={deleting}
-                className="h-8 px-4"
+                className="h-8 w-8 p-0"
               >
                 {deleting ? (
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  <Trash2 className="h-4 w-4" />
                 )}
-                Eliminar Traducción
               </Button>
             </>
           ) : (
@@ -446,7 +556,7 @@ export function ArticleHeader({
                 className="h-8 px-4 border-gray-200 text-gray-700 hover:bg-gray-50"
               >
                 <Eye className="h-3.5 w-3.5 mr-1.5" />
-                Vista Previa
+                Preview
               </Button>
 
               <Button
@@ -472,32 +582,19 @@ export function ArticleHeader({
               </Button>
 
               {article.status === 'draft' && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onSubmit}
-                    className="h-8 px-4"
-                  >
-                    <Send className="h-3.5 w-3.5 mr-1.5" />
-                    Enviar
-                  </Button>
-                  
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={onDelete}
-                    disabled={deleting}
-                    className="h-8 px-4"
-                  >
-                    {deleting ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                    )}
-                    Eliminar
-                  </Button>
-                </>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={onDelete}
+                  disabled={deleting}
+                  className="h-8 w-8 p-0"
+                >
+                  {deleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
               )}
             </>
           )}

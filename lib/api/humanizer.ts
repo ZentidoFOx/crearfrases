@@ -1,10 +1,10 @@
 /**
  * Humanizer Service
  * Convierte contenido generado por IA en texto más natural y humano
+ * Uses API routes to avoid client-side API key issues
  */
 
-import { streamText } from 'ai'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { TokenManager } from '@/lib/utils/token-manager'
 
 interface HumanizeResult {
   content: string
@@ -14,19 +14,6 @@ interface HumanizeResult {
 }
 
 class HumanizerService {
-  private apiKey: string
-
-  constructor() {
-    // Obtener API key
-    const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-    
-    if (!key) {
-      throw new Error('Gemini API key is not configured. Set NEXT_PUBLIC_GEMINI_API_KEY')
-    }
-
-    this.apiKey = key
-  }
-
   /**
    * Humanizar contenido de artículo
    */
@@ -38,152 +25,48 @@ class HumanizerService {
     try {
       console.log('🤖➡️👤 Iniciando humanización de contenido...')
 
-      const preserveMarkdown = options?.preserveMarkdown ?? true
-      const tone = options?.tone ?? 'professional'
-      const targetAudience = options?.targetAudience ?? 'público general'
+      const token = TokenManager.getAccessToken()
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
 
-      const prompt = `Eres redactor profesional. Reescribe este texto eliminando TODOS los patrones de IA.
-
-📝 CONTENIDO:
-${content}
-
-## 🚫 PALABRAS/FRASES PROHIBIDAS:
-Descubre | Explora | Sumérgete | Embárcate | Adéntrate | Desata | Experimenta | Revela | Desbloquea | Transforma | Maximiza | Optimiza | Potencia | ¿Te imaginas? | ¡Absolutamente! | ¡Claro! | Prepárate para | ¿Estás listo? | Es importante destacar | Cabe mencionar | Sin duda | En primer lugar | Por otro lado | En conclusión | Es más que X es Y | Esta fantasía se hace realidad | Momentos inolvidables | Una experiencia que te dejará sin aliento | Esta guía te proporcionará | ¿Alguna vez has soñado? | donde la paciencia se recompensa | una oportunidad de conectar
-
-**Si aparece CUALQUIERA de estas palabras/frases → FALLASTE.**
-
----
-
-## ✅ EJEMPLOS (Sigue ESTE estilo):
-
-❌ **IA (MAL):**
-"¿Te imaginas ver un jaguar acechando? En el Pantanal, esta fantasía se hace realidad. Y 2026 podría ser tu año. Adentrarse en el Pantanal es más que un viaje; es una inmersión en la naturaleza. Prepárate para una experiencia que te dejará sin aliento."
-
-✅ **PROFESIONAL (BIEN):**
-"El Pantanal tiene 90% de tasa de avistamiento de jaguares. Lee eso otra vez. Noventa por ciento. Estás a 5 metros del felino. Puedes ver su respiración. Eso no pasa en ningún otro lugar del mundo. Julio a octubre es cuando ocurre. Necesitas un guía que sepa dónde buscar."
-
-**REGLAS:**
-1. Frases cortas y largas mezcladas
-2. Datos concretos, no promesas vacías
-3. "Tú/te" en vez de lenguaje impersonal
-4. Sin conectores obvios ("en primer lugar", "por otro lado")
-5. Sin frases motivacionales ("fantasía se hace realidad")
-6. Sin estructura "es más que X, es Y"
-
-**Tono:** ${tone} | **Audiencia:** ${targetAudience}
-
----
-
-## ⚡ INSTRUCCIÓN:
-
-${preserveMarkdown ? `
-🔧 **ESTRUCTURA - PASO A PASO:**
-
-**PASO 1:** CUENTA encabezados del original:
-- Cuántos ## hay
-- Cuántos ### hay
-- Cuántos #### hay
-
-**PASO 2:** Tu resultado DEBE tener la MISMA cantidad y niveles:
-- Original: "## Intro" → Tú: "## [humanizado]"
-- Original: "### Parte 1" → Tú: "### [humanizado]"
-- Original: "### Parte 2" → Tú: "### [humanizado]"
-
-**PASO 3:** Párrafos - mantén cantidad similar
-
-**PASO 4:** 🚨 SEPARACIÓN DE PÁRRAFOS - MUY IMPORTANTE:
-- Cada párrafo debe estar separado por doble salto de línea (\n\n)
-- NO juntes todo en un solo bloque de texto
-- Si el original tiene 5 párrafos → Tú debes tener 5 párrafos separados
-- Usa \n\n entre cada párrafo
-
-❌ **NO:**
-- Agregar/eliminar encabezados
-- Cambiar niveles # (## a ###)
-- Juntar todos los párrafos en uno solo
-- Eliminar saltos de línea entre párrafos
-
-✅ **SÍ:**
-- Misma cantidad encabezados
-- Mismos niveles #
-- Párrafos separados con \n\n
-- Solo humaniza TEXTO
-
-` : ''}
-
-🚀 **REESCRIBE. MISMA CANTIDAD ENCABEZADOS. MISMOS NIVELES #. PÁRRAFOS SEPARADOS CON \n\n. NO PALABRAS PROHIBIDAS.**`
-
-      // Crear instancia de Google Generative AI
-      const google = createGoogleGenerativeAI({
-        apiKey: this.apiKey
-      })
-      
-      const model = google('gemini-2.0-flash-exp') // Modelo gratuito y rápido
-
-      // Usar Vercel AI SDK con STREAMING para humanizar
-      const result = await streamText({
-        model: model,
-        prompt: prompt,
-        temperature: 0.7 // Temperatura más alta para mejor calidad
+      const response = await fetch('/api/humanize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content,
+          preserveMarkdown: options?.preserveMarkdown ?? true,
+          tone: options?.tone ?? 'professional',
+          targetAudience: options?.targetAudience ?? 'público general',
+          streaming: false
+        })
       })
 
-      // Acumular el texto conforme llega el stream
-      let humanizedContent = ''
-      
-      for await (const textPart of result.textStream) {
-        humanizedContent += textPart
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error?.message || `HTTP error! status: ${response.status}`)
       }
 
-      // Análisis de mejoras
-      const improvements: string[] = []
-      
-      // Detectar mejoras aplicadas
-      if (!humanizedContent.includes('Es importante destacar')) {
-        improvements.push('Eliminadas frases robóticas comunes')
-      }
-      if (humanizedContent.split('...').length > 1) {
-        improvements.push('Añadidos puntos suspensivos naturales')
-      }
-      if (humanizedContent.match(/\?\s/g)) {
-        improvements.push('Incluidas preguntas retóricas')
-      }
-      if (!humanizedContent.includes('En primer lugar')) {
-        improvements.push('Eliminadas transiciones artificiales')
-      }
-      
-      // Análisis de longitud de frases
-      const sentences = humanizedContent.split(/[.!?]+/).filter(s => s.trim().length > 0)
-      const lengths = sentences.map(s => s.trim().split(/\s+/).length)
-      const variance = Math.max(...lengths) - Math.min(...lengths)
-      if (variance > 10) {
-        improvements.push('Variedad natural en longitud de frases')
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Humanization failed')
       }
 
       console.log('✅ Humanización completada')
-      console.log(`   Original: ${content.length} caracteres`)
-      console.log(`   Humanizado: ${humanizedContent.length} caracteres`)
-      console.log(`   Mejoras aplicadas: ${improvements.length}`)
+      console.log(`   Original: ${result.data.originalLength} caracteres`)
+      console.log(`   Humanizado: ${result.data.humanizedLength} caracteres`)
+      console.log(`   Mejoras aplicadas: ${result.data.improvements.length}`)
 
-      return {
-        content: humanizedContent,
-        originalLength: content.length,
-        humanizedLength: humanizedContent.length,
-        improvements
-      }
+      return result.data as HumanizeResult
 
     } catch (error: any) {
       console.error('❌ Error en humanización:', error)
       
       if (error.message?.includes('Failed to fetch') || error.message?.includes('fetch')) {
-        throw new Error('Error de conexión con Gemini API. Verifica tu conexión a internet.')
-      }
-      
-      if (error.message?.includes('API key') || error.message?.includes('401')) {
-        throw new Error('API key de Gemini no válida. Verifica tu configuración.')
-      }
-      
-      if (error.message?.includes('quota') || error.message?.includes('429')) {
-        throw new Error('Límite de cuota de Gemini alcanzado. Intenta más tarde.')
+        throw new Error('Error de conexión. Verifica tu conexión a internet.')
       }
       
       throw new Error(`Error al humanizar contenido: ${error.message || 'Error desconocido'}`)
@@ -209,9 +92,6 @@ ${preserveMarkdown ? `
 
   /**
    * Humanizar con STREAMING en tiempo real
-   * @param content - Contenido a humanizar
-   * @param onChunk - Callback que se llama con cada chunk de texto generado
-   * @param options - Opciones de humanización
    */
   async humanizeWithStreaming(
     content: string,
@@ -225,98 +105,72 @@ ${preserveMarkdown ? `
     try {
       console.log('🤖➡️👤 Iniciando humanización con STREAMING...')
 
-      const preserveMarkdown = options?.preserveMarkdown ?? true
-      const tone = options?.tone ?? 'professional'
-      const targetAudience = options?.targetAudience ?? 'público general'
-
-      const prompt = `Eres un experto en redacción humana y natural. Tu tarea es transformar contenido generado por IA en texto que suene completamente HUMANO y NATURAL.
-
-📝 CONTENIDO A HUMANIZAR:
-${content}
-
-🎯 OBJETIVO: Hacer que el texto suene 100% HUMANO, eliminando patrones típicos de IA.
-
-⚠️ PROBLEMAS COMUNES DE TEXTO GENERADO POR IA QUE DEBES ELIMINAR:
-
-❌ **Patrones Repetitivos:**
-- Evita frases como "Es importante destacar que...", "Cabe mencionar que...", "Sin duda..."
-- No uses estructuras repetitivas en cada párrafo
-- Varía la longitud de las frases (algunas cortas, otras largas)
-
-❌ **Lenguaje Demasiado Formal o Robótico:**
-- No uses: "En el contexto de...", "A nivel de...", "En términos de..."
-- Prefiere: Lenguaje directo y conversacional
-
-❌ **Transiciones Artificiales:**
-- No uses: "En primer lugar", "Por otro lado", "En consecuencia", "Por lo tanto"
-- Usa transiciones naturales o simplemente conecta ideas fluidamente
-
-✅ **TÉCNICAS DE HUMANIZACIÓN:**
-
-1️⃣ Varía la Estructura de Frases
-2️⃣ Usa Lenguaje Conversacional
-3️⃣ Añade Personalidad y Voz
-4️⃣ Conecta Ideas de Forma Natural
-5️⃣ Tono ${tone.toUpperCase()}
-6️⃣ Audiencia: ${targetAudience}
-
-${preserveMarkdown ? `
-🔧 **PRESERVACIÓN DE MARKDOWN - CRÍTICO:**
-- ⚠️ **RESPETA LA JERARQUÍA DE ENCABEZADOS:**
-  * Si el original tiene ## (H2), mantenlo como ##
-  * Si el original tiene ### (H3), mantenlo como ###
-  * Si el original tiene #### (H4), mantenlo como ####
-  * **NO CAMBIES el nivel de los encabezados**
-  * **NO CONVIERTAS todos los encabezados a ##**
-- Preserva **negritas**, *cursivas*, listas (-, 1.)
-- NO cambies la estructura markdown
-- Solo humaniza el TEXTO dentro de los encabezados, no su nivel jerárquico
-- 🚨 **MANTÉN SALTOS DE LÍNEA ENTRE PÁRRAFOS (\\n\\n)** - MUY IMPORTANTE
-- 🚨 **NO JUNTES TODOS LOS PÁRRAFOS EN UNO SOLO**
-- Cada párrafo debe estar separado por doble salto de línea
-- Si hay imágenes ![](url), déjalas tal cual
-
-**EJEMPLO CORRECTO:**
-Original: "### Consejos Prácticos"
-✅ Correcto: "### Consejos que Debes Saber"
-❌ Incorrecto: "## Consejos que Debes Saber" (cambió de ### a ##)
-
-**EJEMPLO PÁRRAFOS:**
-❌ INCORRECTO: "Este es el párrafo 1. Este es el párrafo 2. Este es el párrafo 3."
-✅ CORRECTO:
-"Este es el párrafo 1.
-
-Este es el párrafo 2.
-
-Este es el párrafo 3."
-` : ''}
-
-🚀 HUMANIZA EL CONTENIDO AHORA (RECUERDA: PÁRRAFOS SEPARADOS CON \\n\\n):`
-
-      // Crear instancia de Google Generative AI
-      const google = createGoogleGenerativeAI({
-        apiKey: this.apiKey
-      })
-      
-      const model = google('gemini-2.0-flash-exp') // Modelo gratuito y rápido
-
-      // Usar Vercel AI SDK con STREAMING
-      const result = await streamText({
-        model: model,
-        prompt: prompt,
-        temperature: 0.7 // Temperatura balanceada para creatividad y obediencia
-      })
-
-      // Procesar el stream en tiempo real
-      let humanizedContent = ''
-      
-      for await (const textPart of result.textStream) {
-        humanizedContent += textPart
-        // Llamar al callback con cada chunk
-        onChunk(textPart, humanizedContent)
+      const token = TokenManager.getAccessToken()
+      if (!token) {
+        throw new Error('No authentication token found')
       }
 
-      // Análisis de mejoras
+      const response = await fetch('/api/humanize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content,
+          preserveMarkdown: options?.preserveMarkdown ?? true,
+          tone: options?.tone ?? 'professional',
+          targetAudience: options?.targetAudience ?? 'público general',
+          streaming: true
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error?.message || `HTTP error! status: ${response.status}`)
+      }
+
+      if (!response.body) {
+        throw new Error('No response body received')
+      }
+
+      // Process streaming response
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let humanizedContent = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) {
+          break
+        }
+
+        const text = decoder.decode(value, { stream: true })
+        const lines = text.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            
+            if (data === '[DONE]') {
+              break
+            }
+
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.chunk) {
+                humanizedContent += parsed.chunk
+                onChunk(parsed.chunk, humanizedContent)
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+
+      // Analyze improvements
       const improvements: string[] = []
       
       if (!humanizedContent.includes('Es importante destacar')) {
@@ -332,8 +186,8 @@ Este es el párrafo 3."
         improvements.push('Eliminadas transiciones artificiales')
       }
       
-      const sentences = humanizedContent.split(/[.!?]+/).filter((s: any) => s.trim().length > 0)
-      const lengths = sentences.map((s: any) => s.trim().split(/\s+/).length)
+      const sentences = humanizedContent.split(/[.!?]+/).filter(s => s.trim().length > 0)
+      const lengths = sentences.map(s => s.trim().split(/\s+/).length)
       const variance = Math.max(...lengths) - Math.min(...lengths)
       if (variance > 10) {
         improvements.push('Variedad natural en longitud de frases')
@@ -355,333 +209,255 @@ Este es el párrafo 3."
   }
 
   /**
-   * 🚀 HUMANIZAR Y MEJORAR - Función COMPLETA
-   * - Humaniza el contenido
-   * - Agrega negritas en palabras clave importantes
-   * - Corrige problemas SEO automáticamente
-   * - Todo en UNA SOLA operación
+   * Construir prompt para humanizar y optimizar contenido
+   */
+  private buildHumanizePrompt(
+    content: string,
+    keyword: string,
+    title: string,
+    options?: {
+      tone?: 'professional' | 'casual' | 'friendly'
+      targetAudience?: string
+    }
+  ): string {
+    const tone = options?.tone ?? 'friendly'
+    const targetAudience = options?.targetAudience ?? 'viajeros y amantes de la naturaleza'
+    
+    return `Eres un escritor experto especializado en humanizar contenido generado por IA y optimizarlo para SEO.
+
+Tu tarea es transformar el siguiente artículo para que suene completamente humano, natural y atractivo, mientras lo optimizas para SEO.
+
+**Título del artículo:** ${title}
+**Palabra clave principal:** ${keyword}
+**Tono:** ${tone}
+**Audiencia objetivo:** ${targetAudience}
+
+**INSTRUCCIONES CRÍTICAS:**
+
+1. **Humanización:**
+   - Elimina COMPLETAMENTE cualquier frase robótica o cliché de IA
+   - Varía la longitud y estructura de las oraciones
+   - Usa lenguaje natural y conversacional
+   - Incluye expresiones humanas como "bueno", "en mi experiencia", "vale la pena", etc.
+   - Evita frases como: "Descubre", "Explora", "Sumérgete", "Te imaginas", "Absolutamente", "Es más que"
+
+2. **Optimización SEO:**
+   - Incluye la palabra clave "${keyword}" entre 5-7 veces de forma natural
+   - Agrega 3-5 palabras o frases en **negrita** para mejorar legibilidad
+   - Mantén EXACTAMENTE la misma estructura de encabezados (## H2, ### H3)
+   - Asegura que el contenido tenga al menos 800 palabras
+
+3. **Formato:**
+   - Devuelve SOLO el contenido en formato Markdown
+   - NO agregues explicaciones antes o después
+   - NO agregues metadatos o comentarios
+   - Mantén todos los encabezados y estructura original
+
+**CONTENIDO A HUMANIZAR Y OPTIMIZAR:**
+
+${content}
+
+**IMPORTANTE:** Responde ÚNICAMENTE con el contenido humanizado en formato Markdown, sin ningún texto adicional.`
+  }
+
+  /**
+   * 🚀 HUMANIZAR Y MEJORAR - Función COMPLETA con streaming y fallback
+   * Usa el mismo endpoint que Step1, Step2, Step3 para consistencia
    */
   async humanizeAndOptimize(
     content: string,
     keyword: string,
     title: string,
+    modelId: number,
     onProgress?: (step: string, progress: number) => void,
     onStreamingContent?: (chunk: string, accumulated: string) => void,
     options?: {
       tone?: 'professional' | 'casual' | 'friendly'
       targetAudience?: string
+      onFallbackToNormal?: () => void
     }
   ): Promise<HumanizeResult & { seoIssuesFixed: number }> {
     try {
-      console.log('🚀 Iniciando HUMANIZACIÓN Y OPTIMIZACIÓN COMPLETA...')
+      console.log('🚀 [HUMANIZE] Iniciando HUMANIZACIÓN Y OPTIMIZACIÓN...')
       
       onProgress?.('Analizando contenido...', 10)
-      
-      const tone = options?.tone ?? 'friendly'
-      const targetAudience = options?.targetAudience ?? 'viajeros y amantes de la naturaleza'
 
-      const prompt = `🚨 REGLA #1 CRÍTICA - LEE PRIMERO:
-
-⚠️ KEYWORD: "${keyword}"
-**MÁXIMO 7 VECES EN TODO EL TEXTO. NUNCA MÁS DE 7.**
-
-Si pones la keyword más de 7 veces = FALLASTE COMPLETAMENTE.
-
----
-
-📝 CONTENIDO:
-${content}
-
-📌 TÍTULO: "${title}"
-
----
-
-## ⚠️ KEYWORD - LA REGLA MÁS IMPORTANTE:
-
-**ANTES de escribir, CUENTA cuántas veces aparece "${keyword}" en el original.**
-
-Si el original tiene 30 veces → TÚ REDUCES a solo 5-7 veces.
-Si el original tiene 2 veces → TÚ AUMENTAS a 5-7 veces.
-
-🚨 **TU TEXTO FINAL:**
-- MÍNIMO: 5 veces
-- MÁXIMO: 7 veces
-- NUNCA: 8, 10, 15, 30 veces
-
-❌ **SI ESCRIBES 30 VECES = FALLASTE**
-❌ **SI ESCRIBES 15 VECES = FALLASTE**
-❌ **SI ESCRIBES 8+ VECES = FALLASTE**
-
-✅ CORRECTO: 5, 6 o 7 veces ÚNICAMENTE
-
-Primera mención en **negrita**: **${keyword}**
-
----
-
-## 🚫 PALABRAS PROHIBIDAS:
-Descubre | Explora | Sumérgete | Embárcate | ¿Te imaginas? | ¡Absolutamente! | ¡Claro! | Prepárate para | Es importante destacar | En primer lugar | Por otro lado | En conclusión | Es más que X es Y | Esta fantasía se hace realidad
-
----
-
-## ✅ ESTILO:
-❌ IA: "¿Te imaginas ver un jaguar? Esta fantasía se hace realidad."
-✅ BIEN: "El Pantanal tiene 90% de avistamiento. Lee eso otra vez."
-
-## ⚠️ ESTRUCTURA - LEE CON ATENCIÓN:
-
-**PASO 1:** CUENTA cuántos encabezados tiene el original:
-- Cuenta ## (anótalos)
-- Cuenta ### (anótalos)
-- Cuenta #### (anótalos)
-
-**PASO 2:** Tu resultado DEBE tener la MISMA cantidad:
-- Si original tiene 2 encabezados ##, tú pones 2 encabezados ##
-- Si original tiene 3 encabezados ###, tú pones 3 encabezados ###
-- Si original tiene 1 encabezado ####, tú pones 1 encabezado ####
-
-**PASO 3:** COPIA el nivel # de cada uno:
-- Original: "## Título" → Tú: "## [texto humanizado]"
-- Original: "### Sub" → Tú: "### [texto humanizado]"
-
-**PASO 4:** Párrafos - mantén la cantidad similar (máximo +1 si necesario)
-
-**PASO 5:** 🚨 SEPARACIÓN DE PÁRRAFOS - CRÍTICO:
-- Cada párrafo debe estar separado por doble salto de línea (\n\n)
-- NO juntes todo en un solo bloque de texto
-- Si el original tiene 5 párrafos → Tú debes tener 5 párrafos separados
-- Usa \n\n entre cada párrafo
-
-❌ **EJEMPLO INCORRECTO (todo en un párrafo):**
-"El Pantanal es increíble. Tiene 90% de avistamiento de jaguares. Es el mejor lugar del mundo para ver vida salvaje. Necesitas un guía experto."
-
-✅ **EJEMPLO CORRECTO (párrafos separados):**
-"El Pantanal es increíble. Tiene 90% de avistamiento de jaguares.
-
-Es el mejor lugar del mundo para ver vida salvaje.
-
-Necesitas un guía experto."
-
-❌ **NO HAGAS:**
-- Agregar encabezados nuevos
-- Eliminar encabezados
-- Cambiar ## por ###
-- Cambiar ### por ##
-- Juntar todos los párrafos en uno solo
-- Eliminar saltos de línea entre párrafos
-
-✅ **HAZ:**
-- Mismo número total de encabezados
-- Mismo nivel # en cada uno
-- Párrafos separados con \n\n
-- Solo humaniza el TEXTO
-
----
-
-## 🚨 ANTES DE ENVIAR TU RESPUESTA:
-
-1. CUENTA cuántas veces usaste "${keyword}" → ¿Es 5, 6 o 7?
-2. Si usaste 8+ veces → REESCRIBE hasta que sea 5-7
-3. Si el original tenía 30 veces y tú también → FALLASTE
-
-🚀 **FORMATO DE SALIDA - MUY IMPORTANTE:**
-
-Tu respuesta DEBE ser MARKDOWN puro con esta estructura EXACTA:
-
-Párrafo 1 de introducción.
-
-Párrafo 2 de introducción.
-
-## Encabezado Sección 1
-
-Párrafo 1 de la sección.
-
-Párrafo 2 de la sección.
-
-### Subsección 1.1
-
-Párrafo de subsección.
-
-## Encabezado Sección 2
-
-Párrafo de sección 2.
-
-❌ **NUNCA HAGAS ESTO:**
-Párrafo 1. Párrafo 2. Párrafo 3. Todo junto sin separación.
-
-✅ **SIEMPRE HAZ ESTO:**
-Párrafo 1.
-
-Párrafo 2.
-
-Párrafo 3.
-
-🚀 **REESCRIBE AHORA:**
-- Keyword "${keyword}" EXACTAMENTE 5-7 veces (NO 30, NO 15, NO 8)
-- Misma cantidad encabezados, mismos niveles #
-- Cada párrafo separado por línea vacía (\\n\\n)
-- NO juntes múltiples párrafos en uno solo
-- No palabras prohibidas
-- Mantén estructura original`
+      const token = TokenManager.getAccessToken()
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
 
       onProgress?.('Generando contenido mejorado...', 30)
 
-      // Crear instancia de Google Generative AI
-      const google = createGoogleGenerativeAI({
-        apiKey: this.apiKey
-      })
-      
-      const model = google('gemini-2.0-flash-exp') // Modelo gratuito y rápido
+      // Construir prompt de humanización
+      const prompt = this.buildHumanizePrompt(content, keyword, title, options)
+      console.log('📝 [HUMANIZE] Prompt construido, longitud:', prompt.length)
 
-      // Usar Vercel AI SDK con STREAMING
-      const result = await streamText({
-        model: model,
-        prompt: prompt,
-        temperature: 0.7 // Temperatura balanceada para creatividad y obediencia
+      // Intentar con streaming primero usando el mismo endpoint que Step1/Step2/Step3
+      const streamingResponse = await fetch('/api/ai/generate-stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          model_id: modelId,
+          prompt: prompt,
+          temperature: 0.7
+        })
       })
+
+      // Detectar si streaming no está soportado
+      const contentType = streamingResponse.headers.get('content-type')
+      const isStreamSupported = contentType?.includes('text/event-stream')
+      
+      if (!streamingResponse.ok) {
+        const errorData = await streamingResponse.json().catch(() => null)
+        
+        // Si el modelo no soporta streaming, usar método normal
+        if (errorData?.error?.code === 'STREAMING_NOT_SUPPORTED' || !isStreamSupported) {
+          console.log('⚠️ [HUMANIZE] Streaming no soportado, usando método normal...')
+          options?.onFallbackToNormal?.()
+          return await this.humanizeAndOptimizeNormal(
+            content,
+            keyword,
+            title,
+            modelId,
+            onProgress,
+            options
+          )
+        }
+        
+        throw new Error(errorData?.error?.message || `HTTP error! status: ${streamingResponse.status}`)
+      }
+
+      if (!isStreamSupported) {
+        console.log('⚠️ [HUMANIZE] Respuesta no es stream, usando método normal...')
+        options?.onFallbackToNormal?.()
+        return await this.humanizeAndOptimizeNormal(
+          content,
+          keyword,
+          title,
+          modelId,
+          onProgress,
+          options
+        )
+      }
+
+      if (!streamingResponse.body) {
+        console.log('⚠️ [HUMANIZE] Sin body en respuesta, usando método normal...')
+        options?.onFallbackToNormal?.()
+        return await this.humanizeAndOptimizeNormal(
+          content,
+          keyword,
+          title,
+          modelId,
+          onProgress,
+          options
+        )
+      }
 
       onProgress?.('Recibiendo contenido optimizado...', 50)
 
-      // Acumular el texto conforme llega el stream
+      // Process streaming response (igual que Step1/2/3)
+      const reader = streamingResponse.body.getReader()
+      const decoder = new TextDecoder()
+      let sseBuffer = ''
       let optimizedContent = ''
       let chunkCount = 0
       const startTime = Date.now()
-      
-      console.log('🔥 INICIANDO STREAMING...')
-      
-      for await (const textPart of result.textStream) {
-        chunkCount++
-        optimizedContent += textPart
+
+      console.log('🔥 [HUMANIZE] INICIANDO STREAMING...')
+
+      while (true) {
+        const { done, value } = await reader.read()
         
-        // Actualizar progreso
-        const progress = 50 + (optimizedContent.length / (content.length * 1.5)) * 40
-        onProgress?.('Procesando contenido...', progress)
-        
-        // 🔥 ENVIAR CONTENIDO PARCIAL AL EDITOR (streaming) - CADA CHUNK
-        if (onStreamingContent) {
-          onStreamingContent(textPart, optimizedContent)
-          
-          // Log cada 5 chunks
-          if (chunkCount % 5 === 0) {
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-            console.log(`📡 Chunk #${chunkCount}: +${textPart.length} chars | Total: ${optimizedContent.length} chars | ${elapsed}s`)
+        if (done) {
+          console.log('✅ [HUMANIZE] Stream terminado')
+          break
+        }
+
+        sseBuffer += decoder.decode(value, { stream: true })
+        const lines = sseBuffer.split('\n')
+        sseBuffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            
+            if (data === '[DONE]') {
+              console.log('🏁 [HUMANIZE] Recibido [DONE]')
+              continue
+            }
+
+            try {
+              const parsed = JSON.parse(data)
+              
+              // Detectar error en el stream
+              if (parsed.error) {
+                console.error('❌ [HUMANIZE] Error en stream:', parsed.error)
+                console.log('⚠️ [HUMANIZE] Fallback a método normal...')
+                options?.onFallbackToNormal?.()
+                return await this.humanizeAndOptimizeNormal(
+                  content,
+                  keyword,
+                  title,
+                  modelId,
+                  onProgress,
+                  options
+                )
+              }
+              
+              if (parsed.chunk) {
+                chunkCount++
+                optimizedContent += parsed.chunk
+                
+                const progress = 50 + Math.min(40, (optimizedContent.length / (content.length * 1.5)) * 40)
+                onProgress?.('Procesando contenido...', Math.round(progress))
+                
+                // Emitir chunk al callback para actualización en tiempo real
+                if (onStreamingContent) {
+                  onStreamingContent(parsed.chunk, optimizedContent)
+                  
+                  if (chunkCount % 5 === 0) {
+                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+                    console.log(`📡 [HUMANIZE] Chunk #${chunkCount}: +${parsed.chunk.length} chars | Total: ${optimizedContent.length} chars | ${elapsed}s`)
+                  }
+                }
+              }
+            } catch (e) {
+              if (e instanceof Error && e.message !== 'Unexpected end of JSON input') {
+                console.error('❌ [HUMANIZE] Error parseando:', e)
+              }
+              // Skip invalid JSON
+            }
           }
         }
       }
-      
+
+      // Verificar si se recibió contenido
+      if (optimizedContent.length === 0) {
+        console.warn('⚠️ [HUMANIZE] No se recibió contenido vía streaming, usando método normal...')
+        options?.onFallbackToNormal?.()
+        return await this.humanizeAndOptimizeNormal(
+          content,
+          keyword,
+          title,
+          modelId,
+          onProgress,
+          options
+        )
+      }
+
       const totalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-      console.log(`✅ STREAMING COMPLETADO: ${chunkCount} chunks en ${totalTime}s | Total: ${optimizedContent.length} chars`)
+      console.log(`✅ [HUMANIZE] STREAMING COMPLETADO: ${chunkCount} chunks en ${totalTime}s | Total: ${optimizedContent.length} chars`)
 
       onProgress?.('Analizando mejoras aplicadas...', 95)
 
-      // 🔥 POST-PROCESAMIENTO 1: ELIMINAR palabras prohibidas
-      const prohibitedPatterns = [
-        /\bDescubre\b/gi,
-        /\bExplora\b/gi,
-        /\bSumérgete\b/gi,
-        /\bEmbárcate\b/gi,
-        /\bAdéntrate\b/gi,
-        /\bAdentrarse\b/gi,
-        /\bDesata\b/gi,
-        /\bExperimenta\b/gi,
-        /\bRevela\b/gi,
-        /\bDesbloquea\b/gi,
-        /\bTransforma\b/gi,
-        /\bMaximiza\b/gi,
-        /\bmaximizando\b/gi,
-        /\bOptimiza\b/gi,
-        /\bPotencia\b/gi,
-        /¿Te imaginas\?/gi,
-        /¡Absolutamente!/gi,
-        /¡Claro!/gi,
-        /Prepárate para/gi,
-        /¿Estás listo\?/gi,
-        /Es importante destacar/gi,
-        /Cabe mencionar/gi,
-        /En primer lugar/gi,
-        /Por otro lado/gi,
-        /En conclusión/gi,
-        /es más que .+ es /gi,
-        /es una inmersión/gi,
-        /Esta fantasía se hace realidad/gi,
-        /Momentos inolvidables/gi,
-        /Una experiencia inolvidable/gi,
-        /experiencia inolvidable/gi,
-        /Una experiencia que te dejará sin aliento/gi,
-        /Esta guía te proporcionará/gi,
-        /conexión profunda con la naturaleza/gi,
-        /oportunidad única/gi
-      ]
-      
-      console.log('🧹 Limpiando palabras prohibidas...')
-      let cleanedCount = 0
-      
-      prohibitedPatterns.forEach(pattern => {
-        const matches = optimizedContent.match(pattern)
-        if (matches) {
-          cleanedCount += matches.length
-          optimizedContent = optimizedContent.replace(pattern, '')
-        }
-      })
-      
-      if (cleanedCount > 0) {
-        console.log(`✅ Eliminadas ${cleanedCount} palabras/frases prohibidas`)
-        // 🔥 Limpiar SOLO espacios múltiples en la MISMA línea (NO eliminar \n\n)
-        // Reemplazar 3+ espacios con 1 espacio (pero preservar saltos de línea)
-        optimizedContent = optimizedContent.replace(/[^\S\n]+/g, ' ')
-        // Limpiar puntos y comas duplicados
-        optimizedContent = optimizedContent.replace(/\.\s*\./g, '.')
-        optimizedContent = optimizedContent.replace(/,\s*,/g, ',')
-        // Preservar dobles saltos de línea (párrafos)
-        optimizedContent = optimizedContent.replace(/\n{3,}/g, '\n\n')
-        
-        // Actualizar editor con contenido limpio
-        onStreamingContent?.('', optimizedContent)
-      }
-
-      // 🔥 POST-PROCESAMIENTO 2: FORZAR límite de keyword 5-7 veces
-      const keywordRegex = new RegExp(keyword, 'gi')
-      const keywordMatches = optimizedContent.match(keywordRegex)
-      const currentKeywordCount = keywordMatches ? keywordMatches.length : 0
-      
-      console.log(`🔍 Keyword "${keyword}": Encontradas ${currentKeywordCount} veces`)
-      
-      if (currentKeywordCount > 7) {
-        console.log(`⚠️ Reduciendo keyword de ${currentKeywordCount} a 7 veces...`)
-        
-        // Mantener solo las primeras 7 apariciones (eliminar extras)
-        let count = 0
-        optimizedContent = optimizedContent.replace(keywordRegex, (match) => {
-          count++
-          if (count <= 7) {
-            return match // Mantener las primeras 7
-          } else {
-            // Eliminar las keywords extra (después de la 7ª)
-            // Reemplazar por términos genéricos
-            const genericTerms = ['este servicio', 'esta experiencia', 'esto', 'ello', 'el tema', 'esta actividad']
-            return genericTerms[Math.floor(Math.random() * genericTerms.length)]
-          }
-        })
-        
-        // 🔥 Limpiar SOLO espacios múltiples en la MISMA línea (NO eliminar \n\n)
-        optimizedContent = optimizedContent.replace(/[^\S\n]+/g, ' ')
-        // Preservar dobles saltos de línea (párrafos)
-        optimizedContent = optimizedContent.replace(/\n{3,}/g, '\n\n')
-        
-        console.log(`✅ Keyword reducida de ${currentKeywordCount} a máximo 7 veces`)
-        
-        // Enviar contenido corregido al editor
-        onStreamingContent?.('', optimizedContent)
-      } else if (currentKeywordCount < 5) {
-        console.log(`⚠️ Keyword aparece solo ${currentKeywordCount} veces (mínimo recomendado: 5)`)
-      } else {
-        console.log(`✅ Keyword aparece ${currentKeywordCount} veces (óptimo: 5-7)`)
-      }
-
-      // Análisis de mejoras SEO
+      // Analyze SEO improvements
       let seoIssuesFixed = 0
       const improvements: string[] = []
       
-      // Verificar keyword - CONTROL ESTRICTO 5-7 veces
       const keywordCount = (optimizedContent.toLowerCase().match(new RegExp(keyword.toLowerCase(), 'g')) || []).length
       const originalKeywordCount = (content.toLowerCase().match(new RegExp(keyword.toLowerCase(), 'g')) || []).length
       
@@ -698,7 +474,6 @@ Párrafo 3.
         improvements.push(`⚠️ Keyword aparece ${keywordCount} veces (aumenta a 5-7 para mejor SEO)`)
       }
       
-      // Verificar negritas
       const boldCount = (optimizedContent.match(/\*\*[^*]+\*\*/g) || []).length
       const originalBoldCount = (content.match(/\*\*[^*]+\*\*/g) || []).length
       
@@ -707,7 +482,6 @@ Párrafo 3.
         seoIssuesFixed++
       }
       
-      // Verificar estructura de encabezados
       const h2Count = (optimizedContent.match(/^## /gm) || []).length
       const originalH2Count = (content.match(/^## /gm) || []).length
       const h3Count = (optimizedContent.match(/^### /gm) || []).length
@@ -720,7 +494,6 @@ Párrafo 3.
         improvements.push(`⚠️ Estructura modificada: H2 ${originalH2Count}→${h2Count}, H3 ${originalH3Count}→${h3Count}`)
       }
       
-      // Verificar longitud
       const wordCount = optimizedContent.split(/\s+/).length
       const originalWordCount = content.split(/\s+/).length
       
@@ -731,7 +504,6 @@ Párrafo 3.
         }
       }
       
-      // Verificar humanización - detectar palabras prohibidas
       const prohibitedWords = ['Descubre', 'Explora', 'Sumérgete', 'Te imaginas', 'Absolutamente', 'Es más que']
       const foundProhibited = prohibitedWords.filter(word => optimizedContent.includes(word))
       
@@ -760,6 +532,117 @@ Párrafo 3.
 
     } catch (error: any) {
       console.error('❌ Error en humanización y optimización:', error)
+      throw new Error(`Error al optimizar contenido: ${error.message || 'Error desconocido'}`)
+    }
+  }
+
+  /**
+   * 🔄 FALLBACK - Método normal sin streaming
+   * Usa el mismo endpoint pero genera todo de una vez
+   */
+  private async humanizeAndOptimizeNormal(
+    content: string,
+    keyword: string,
+    title: string,
+    modelId: number,
+    onProgress?: (step: string, progress: number) => void,
+    options?: {
+      tone?: 'professional' | 'casual' | 'friendly'
+      targetAudience?: string
+    }
+  ): Promise<HumanizeResult & { seoIssuesFixed: number }> {
+    try {
+      console.log('🔄 [HUMANIZE-NORMAL] Iniciando método sin streaming...')
+      
+      onProgress?.('Generando contenido (sin streaming)...', 40)
+
+      const token = TokenManager.getAccessToken()
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+
+      // Construir mismo prompt
+      const prompt = this.buildHumanizePrompt(content, keyword, title, options)
+
+      // Usar API de generación normal (sin streaming)
+      const response = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          model_id: modelId,
+          prompt: prompt,
+          temperature: 0.7,
+          maxTokens: 8192
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error?.message || `HTTP error! status: ${response.status}`)
+      }
+
+      onProgress?.('Procesando respuesta...', 70)
+
+      const result = await response.json()
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Generation failed')
+      }
+
+      console.log('✅ [HUMANIZE-NORMAL] Contenido optimizado recibido')
+      
+      const optimizedContent = result.data?.text || result.data?.content || ''
+
+      onProgress?.('Analizando mejoras aplicadas...', 90)
+
+      // Analyze SEO improvements (mismo código)
+      let seoIssuesFixed = 0
+      const improvements: string[] = []
+      
+      const keywordCount = (optimizedContent.toLowerCase().match(new RegExp(keyword.toLowerCase(), 'g')) || []).length
+      const originalKeywordCount = (content.toLowerCase().match(new RegExp(keyword.toLowerCase(), 'g')) || []).length
+      
+      if (keywordCount >= 5 && keywordCount <= 7) {
+        improvements.push(`✅ Keyword aparece ${keywordCount} veces (óptimo: 5-7)`)
+        if (originalKeywordCount > 7 || originalKeywordCount < 5) {
+          seoIssuesFixed++
+        }
+      }
+      
+      const boldCount = (optimizedContent.match(/\*\*[^*]+\*\*/g) || []).length
+      const originalBoldCount = (content.match(/\*\*[^*]+\*\*/g) || []).length
+      
+      if (boldCount > originalBoldCount) {
+        improvements.push(`Agregadas ${boldCount - originalBoldCount} palabras en negrita`)
+        seoIssuesFixed++
+      }
+      
+      const prohibitedWords = ['Descubre', 'Explora', 'Sumérgete', 'Te imaginas', 'Absolutamente', 'Es más que']
+      const foundProhibited = prohibitedWords.filter(word => optimizedContent.includes(word))
+      
+      if (foundProhibited.length === 0) {
+        improvements.push('✅ Sin palabras prohibidas de IA')
+        seoIssuesFixed++
+      }
+
+      onProgress?.('Completado', 100)
+
+      console.log('✅ [HUMANIZE-NORMAL] Optimización completada')
+      console.log(`   Problemas SEO corregidos: ${seoIssuesFixed}`)
+
+      return {
+        content: optimizedContent,
+        originalLength: content.length,
+        humanizedLength: optimizedContent.length,
+        improvements,
+        seoIssuesFixed
+      }
+
+    } catch (error: any) {
+      console.error('❌ [HUMANIZE-NORMAL] Error:', error)
       throw new Error(`Error al optimizar contenido: ${error.message || 'Error desconocido'}`)
     }
   }

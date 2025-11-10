@@ -5,6 +5,7 @@ export interface Step3ContentProps {
   description?: string
   keywords?: string[]
   objectivePhrase?: string
+  modelId?: number
   onContentGenerated: (content: any) => void
   onBack: () => void
 }

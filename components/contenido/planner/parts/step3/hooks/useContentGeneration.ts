@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { geminiService } from '@/lib/api/gemini'
+import { aiService } from '@/lib/api/ai-service'
 import { DetailLevel, GenerationStep } from '../types'
 
 export interface OutlineSection {
@@ -11,7 +11,7 @@ export interface OutlineSection {
   items?: number
 }
 
-export const useContentGeneration = () => {
+export const useContentGeneration = (modelId?: number) => {
   const [content, setContent] = useState<any>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState('')
@@ -29,28 +29,62 @@ export const useContentGeneration = () => {
     numSections: number,
     detailLevel: DetailLevel
   ) => {
+    if (!modelId) {
+      setError('No se ha seleccionado un modelo de IA')
+      return
+    }
+
     setIsGeneratingOutline(true)
     setError('')
+    setOutline([]) // Limpiar outline anterior
 
     try {
-      const generatedOutline = await geminiService.generateOutline(
+      console.log('🚀 [STEP3] Iniciando generación de estructura con streaming...')
+      console.log('🔑 [STEP3] Título:', title)
+      console.log('📊 [STEP3] Secciones:', numSections)
+      
+      // Intentar con streaming primero
+      const streamingSuccess = await aiService.generateOutlineStreaming(
         title,
         keyword,
         numSections,
-        detailLevel
+        detailLevel,
+        modelId,
+        (newSection) => {
+          console.log('🎯 [STEP3] Nueva sección recibida:', newSection.title)
+          
+          // Usar setState funcional para actualizar en tiempo real
+          setOutline(prev => {
+            const newOutline = [...prev, newSection]
+            console.log('📋 [STEP3] Añadiendo sección. Total:', newOutline.length)
+            return newOutline
+          })
+        }
       )
       
-      // Agregar IDs únicos a cada sección
-      const outlineWithIds = generatedOutline.map((section, index) => ({
-        ...section,
-        id: `section-${Date.now()}-${index}`
-      }))
-      
-      setOutline(outlineWithIds)
-      setShowOutline(true)
-      return outlineWithIds
+      // Si el streaming no fue exitoso, usar el método normal
+      if (!streamingSuccess) {
+        console.log('⚠️ [STEP3] Streaming no soportado, usando método normal...')
+        
+        const generatedOutline = await aiService.generateOutline(
+          title,
+          keyword,
+          numSections,
+          detailLevel,
+          modelId
+        )
+        
+        console.log('✅ [STEP3] Estructura generada con método normal:', generatedOutline.length)
+        setOutline(generatedOutline)
+        setShowOutline(true)
+        return generatedOutline
+      } else {
+        console.log('✅ [STEP3] Streaming completado. Total:', outline.length)
+        setShowOutline(true)
+        return outline
+      }
     } catch (err: any) {
-      console.error('Error generando outline:', err)
+      console.error('❌ [STEP3] Error generando outline:', err)
       setError(err.message || 'Error al generar estructura')
       throw err
     } finally {
@@ -67,52 +101,123 @@ export const useContentGeneration = () => {
     onContentGenerated?: (content: any) => void,
     onSeoAnalysisGenerated?: (analysis: any) => void
   ) => {
+    if (!modelId) {
+      setError('No se ha seleccionado un modelo de IA')
+      throw new Error('No se ha seleccionado un modelo de IA')
+    }
+
     setIsGenerating(true)
     setError('')
     setGenerationStep('content')
     setShowOutline(false)
 
     try {
-      // Convert outline to detailed structure for content generation
-      const detailedOutline = outline.length > 0 
-        ? outline.map(s => ({
-            id: s.id,
-            type: s.type,
-            title: s.title,
-            paragraphs: s.paragraphs,
-            characters: s.characters,
-            items: s.items
-          }))
-        : undefined
-
-      console.log('🎯 Generando contenido con outline:', {
-        hasOutline: !!detailedOutline,
-        outlineLength: outline.length,
-        outline: detailedOutline
-      })
-
-      // Use custom outline if available, otherwise let Gemini create it
-      const generatedContent = await geminiService.generateContent(
-        title, 
-        keyword, 
-        numSections, 
-        detailLevel,
+      console.log('🚀 [STEP3-CONTENT] Iniciando generación de contenido con streaming...')
+      console.log('🔑 [STEP3-CONTENT] Título:', title)
+      console.log('📊 [STEP3-CONTENT] Outline:', outline.length, 'secciones')
+      
+      let accumulatedContent = ''
+      
+      // Intentar con streaming primero
+      const streamingSuccess = await aiService.generateContentStreaming(
+        title,
+        keyword,
         introParagraphs,
-        detailedOutline
+        outline,
+        modelId,
+        (chunk) => {
+          // Callback ejecutado por cada chunk de contenido
+          accumulatedContent += chunk
+          
+          // Actualizar contenido en tiempo real
+          const tempContent = {
+            introduction: '',
+            sections: [],
+            conclusion: '',
+            fullContent: accumulatedContent
+          }
+          
+          setContent(tempContent)
+          onContentGenerated?.(tempContent)
+          
+          console.log('📦 [STEP3-CONTENT] Contenido acumulado:', accumulatedContent.length, 'caracteres')
+        }
       )
       
-      setContent(generatedContent)
-      onContentGenerated?.(generatedContent)
-
-      setGenerationStep('done')
-      
-      return { content: generatedContent, analysis: null }
+      // Si el streaming fue exitoso, parsear el contenido final
+      if (streamingSuccess) {
+        console.log('✅ [STEP3-CONTENT] Streaming completado. Total:', accumulatedContent.length, 'caracteres')
+        
+        // Parsear el contenido acumulado en secciones
+        const parsedContent = parseContentSections(accumulatedContent)
+        
+        setContent(parsedContent)
+        onContentGenerated?.(parsedContent)
+        setGenerationStep('done')
+        
+        return { content: parsedContent, analysis: null }
+      } else {
+        // Si el streaming no fue exitoso, usar el método normal
+        console.log('⚠️ [STEP3-CONTENT] Streaming no soportado, usando método normal...')
+        
+        const generatedContent = await aiService.generateContent(
+          title,
+          keyword,
+          introParagraphs,
+          outline,
+          modelId
+        )
+        
+        console.log('✅ [STEP3-CONTENT] Contenido generado con método normal')
+        
+        setContent(generatedContent)
+        onContentGenerated?.(generatedContent)
+        setGenerationStep('done')
+        
+        return { content: generatedContent, analysis: null }
+      }
     } catch (err: any) {
-      console.error('Error generando contenido:', err)
+      console.error('❌ [STEP3-CONTENT] Error generando contenido:', err)
       setError(err.message || 'Error al generar contenido')
       throw err
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  // Helper function to parse content sections
+  const parseContentSections = (fullContent: string) => {
+    const sections: Array<{ heading: string; content: string; order: number }> = []
+    let introduction = ''
+    let conclusion = ''
+    
+    // Split by H2 headers
+    const parts = fullContent.split(/(?=^## )/m)
+    
+    // First part is introduction
+    if (parts.length > 0) {
+      introduction = parts[0].trim()
+    }
+    
+    // Process sections
+    for (let i = 1; i < parts.length; i++) {
+      const part = parts[i].trim()
+      const lines = part.split('\n')
+      const heading = lines[0].replace(/^##\s*/, '').trim()
+      const content = lines.slice(1).join('\n').trim()
+      
+      sections.push({
+        heading,
+        content,
+        order: i
+      })
+    }
+    
+    return {
+      introduction,
+      sections,
+      conclusion,
+      fullContent
     }
   }
 
