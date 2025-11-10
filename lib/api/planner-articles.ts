@@ -214,10 +214,35 @@ class PlannerArticlesService {
   }
 
   /**
-   * Actualizar artículo
+   * Actualizar artículo ORIGINAL
+   * 🛡️ PROTECCIÓN: Este método SOLO debe usarse para actualizar el artículo original
+   * Para traducciones, usar updateTranslation()
    */
   async update(id: number, articleData: Partial<PlannerArticleData>): Promise<PlannerArticle> {
     try {
+      // 🛡️ PROTECCIÓN: Obtener el artículo para verificar su idioma original
+      const currentArticle = await this.getById(id)
+      const originalLanguage = currentArticle.language || 'es'
+      
+      console.log('🔒 [API-UPDATE] Validando actualización de artículo ORIGINAL:')
+      console.log('  - Article ID:', id)
+      console.log('  - Idioma original del artículo:', originalLanguage)
+      console.log('  - Datos a actualizar:', Object.keys(articleData))
+      
+      // 🛡️ PROTECCIÓN: Si se está enviando un campo 'language', debe coincidir con el original
+      if (articleData.language && articleData.language !== originalLanguage) {
+        const errorMsg = `⛔ [API-UPDATE] ERROR CRÍTICO: Intentando cambiar el idioma del artículo original de "${originalLanguage}" a "${articleData.language}". Esto NO está permitido. Las traducciones deben crearse con createTranslation().`
+        console.error(errorMsg)
+        throw new Error(errorMsg)
+      }
+      
+      // 🛡️ ADVERTENCIA: Logging para detectar posibles guardados incorrectos
+      if (articleData.content) {
+        console.log('  - Contenido (primeros 100 chars):', articleData.content.substring(0, 100))
+      }
+      
+      console.log('✅ [API-UPDATE] Validación pasada, procediendo con actualización...')
+      
       const response = await fetch(`${this.baseURL}/${id}`, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
@@ -230,9 +255,10 @@ class PlannerArticlesService {
       }
 
       const result = await response.json()
+      console.log('✅ [API-UPDATE] Artículo original actualizado correctamente')
       return result.data
     } catch (error) {
-      console.error('Error updating article:', error)
+      console.error('❌ [API-UPDATE] Error updating article:', error)
       throw error
     }
   }
@@ -363,12 +389,39 @@ class PlannerArticlesService {
 
   /**
    * Crear nueva traducción
+   * 🛡️ PROTECCIÓN: Validar que el idioma de la traducción no sea el mismo que el original
    */
   async createTranslation(
     articleId: number,
     translation: Partial<ArticleTranslation>
   ): Promise<ArticleTranslation> {
     try {
+      // 🛡️ PROTECCIÓN: Obtener artículo original para validar
+      const originalArticle = await this.getById(articleId)
+      const originalLanguage = originalArticle.language || 'es'
+      const translationLanguage = translation.language
+      
+      console.log('🌐 [API-CREATE-TRANSLATION] Validando creación de traducción:')
+      console.log('  - Article ID:', articleId)
+      console.log('  - Idioma original:', originalLanguage)
+      console.log('  - Idioma de traducción:', translationLanguage)
+      
+      // 🛡️ PROTECCIÓN: No permitir crear traducción en el mismo idioma que el original
+      if (translationLanguage === originalLanguage) {
+        const errorMsg = `⛔ [API-CREATE-TRANSLATION] ERROR: Intentando crear traducción en el mismo idioma que el original (${originalLanguage}). Usa update() para modificar el artículo original.`
+        console.error(errorMsg)
+        throw new Error(errorMsg)
+      }
+      
+      // 🛡️ PROTECCIÓN: Verificar que ya no existe esta traducción
+      if (originalArticle.available_languages?.includes(translationLanguage!)) {
+        const errorMsg = `⛔ [API-CREATE-TRANSLATION] ERROR: Ya existe una traducción para el idioma ${translationLanguage}. Usa updateTranslation() para actualizarla.`
+        console.error(errorMsg)
+        throw new Error(errorMsg)
+      }
+      
+      console.log('✅ [API-CREATE-TRANSLATION] Validación pasada, creando traducción...')
+      
       const response = await fetch(`${this.baseURL}/${articleId}/translations`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
@@ -381,15 +434,17 @@ class PlannerArticlesService {
       }
 
       const result = await response.json()
+      console.log('✅ [API-CREATE-TRANSLATION] Traducción creada correctamente')
       return result.data
     } catch (error) {
-      console.error('Error creating translation:', error)
+      console.error('❌ [API-CREATE-TRANSLATION] Error creating translation:', error)
       throw error
     }
   }
 
   /**
    * Actualizar traducción
+   * 🛡️ PROTECCIÓN: Validar que se está actualizando una traducción y no el artículo original
    */
   async updateTranslation(
     articleId: number,
@@ -397,6 +452,37 @@ class PlannerArticlesService {
     translation: Partial<ArticleTranslation>
   ): Promise<ArticleTranslation> {
     try {
+      // 🛡️ PROTECCIÓN: Obtener artículo original para validar
+      const originalArticle = await this.getById(articleId)
+      const originalLanguage = originalArticle.language || 'es'
+      
+      console.log('🔄 [API-UPDATE-TRANSLATION] Validando actualización de traducción:')
+      console.log('  - Article ID:', articleId)
+      console.log('  - Idioma original del artículo:', originalLanguage)
+      console.log('  - Idioma de la traducción a actualizar:', language)
+      console.log('  - Datos a actualizar:', Object.keys(translation))
+      
+      // 🛡️ PROTECCIÓN: No permitir actualizar el idioma original como si fuera traducción
+      if (language === originalLanguage) {
+        const errorMsg = `⛔ [API-UPDATE-TRANSLATION] ERROR CRÍTICO: Intentando actualizar el idioma original (${originalLanguage}) como si fuera una traducción. Usa update() para modificar el artículo original.`
+        console.error(errorMsg)
+        throw new Error(errorMsg)
+      }
+      
+      // 🛡️ PROTECCIÓN: Verificar que la traducción existe
+      if (!originalArticle.available_languages?.includes(language)) {
+        const errorMsg = `⛔ [API-UPDATE-TRANSLATION] ERROR: No existe traducción para el idioma ${language}. Créala primero con createTranslation().`
+        console.error(errorMsg)
+        throw new Error(errorMsg)
+      }
+      
+      // 🛡️ ADVERTENCIA: Logging del contenido
+      if (translation.content) {
+        console.log('  - Contenido (primeros 100 chars):', translation.content.substring(0, 100))
+      }
+      
+      console.log('✅ [API-UPDATE-TRANSLATION] Validación pasada, actualizando traducción...')
+      
       const response = await fetch(`${this.baseURL}/${articleId}/translations/${language}`, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
@@ -409,9 +495,10 @@ class PlannerArticlesService {
       }
 
       const result = await response.json()
+      console.log(`✅ [API-UPDATE-TRANSLATION] Traducción ${language} actualizada correctamente`)
       return result.data
     } catch (error) {
-      console.error('Error updating translation:', error)
+      console.error('❌ [API-UPDATE-TRANSLATION] Error updating translation:', error)
       throw error
     }
   }
