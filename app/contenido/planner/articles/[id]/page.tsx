@@ -146,8 +146,16 @@ export default function ArticleEditorPage() {
   const handleLanguageChange = async (langCode: string) => {
     if (!article || !articleId) return
     
+    const originalLanguage = article.language || 'es'
+    
+    console.log('🌍 [LANGUAGE] Cambiando idioma:')
+    console.log('  - Idioma original:', originalLanguage)
+    console.log('  - Idioma solicitado:', langCode)
+    console.log('  - Idiomas disponibles:', article.available_languages)
+    
     // Si es el idioma principal, mostrar contenido del artículo original
-    if (langCode === article.language) {
+    if (langCode === originalLanguage) {
+      console.log('✅ [LANGUAGE] Mostrando artículo ORIGINAL')
       setCurrentLanguage(langCode)
       setCurrentTranslationData(null) // Limpiar datos de traducción
       const htmlContent = markdownToHtml(article.content || '')
@@ -156,11 +164,25 @@ export default function ArticleEditorPage() {
       return
     }
     
+    // 🛡️ PROTECCIÓN: Verificar que la traducción existe
+    if (!article.available_languages?.includes(langCode)) {
+      alert(`⛔ Error: No existe traducción para el idioma ${langCode}. Por favor, crea la traducción primero.`)
+      console.error(`❌ [LANGUAGE] Traducción no encontrada para: ${langCode}`)
+      return
+    }
+    
     // Si es una traducción, cargarla
+    console.log('📥 [LANGUAGE] Cargando TRADUCCIÓN:', langCode)
     setLoadingTranslation(true)
     try {
       const translation = await plannerArticlesService.getTranslation(articleId, langCode)
       setCurrentLanguage(langCode)
+      
+      console.log('✅ [LANGUAGE] Traducción cargada correctamente:', {
+        language: translation.language,
+        title: translation.title?.substring(0, 50),
+        contentLength: translation.content?.length
+      })
       
       // Crear objeto con datos de la traducción para mostrar en el UI
       setCurrentTranslationData({
@@ -181,6 +203,7 @@ export default function ArticleEditorPage() {
       setEditedContent(htmlContent)
       setEditorKey(prev => prev + 1)
     } catch (error: any) {
+      console.error('❌ [LANGUAGE] Error al cargar traducción:', error)
       alert(`Error al cargar traducción: ${error.message}`)
     } finally {
       setLoadingTranslation(false)
@@ -189,6 +212,16 @@ export default function ArticleEditorPage() {
 
   const handleSave = async () => {
     if (!articleId || !article) return
+    
+    // 🛡️ PROTECCIÓN: Verificar que estamos en el idioma correcto
+    const originalLanguage = article.language || 'es'
+    const isTranslation = currentLanguage !== originalLanguage
+    
+    console.log('💾 [SAVE] Guardando artículo:')
+    console.log('  - Idioma original del artículo:', originalLanguage)
+    console.log('  - Idioma actual seleccionado:', currentLanguage)
+    console.log('  - Es traducción:', isTranslation)
+    
     setSaving(true)
     try {
       // 🔥 Obtener contenido actual del editor
@@ -231,12 +264,19 @@ export default function ArticleEditorPage() {
         console.log('💾 Guardando estado de publicación:', postStatus)
       }
       
-      // Verificar si estamos guardando una traducción o el artículo original
-      const isTranslation = currentLanguage !== (article.language || 'es')
-      
+      // 🛡️ PROTECCIÓN ADICIONAL: Doble verificación antes de guardar
       if (isTranslation) {
+        console.log(`💾 [SAVE] Guardando TRADUCCIÓN en idioma: ${currentLanguage}`)
+        
+        // Verificar que la traducción existe
+        if (!article.available_languages?.includes(currentLanguage)) {
+          throw new Error(`⛔ ERROR: No existe traducción para el idioma ${currentLanguage}. Crea la traducción primero.`)
+        }
+        
         // Guardar traducción con imagen y categorías
         await plannerArticlesService.updateTranslation(articleId, currentLanguage, wpData)
+        console.log(`✅ [SAVE] Traducción ${currentLanguage} guardada correctamente`)
+        
         // Actualizar el estado local sin recargar
         if (currentTranslationData) {
           setCurrentTranslationData({
@@ -245,13 +285,22 @@ export default function ArticleEditorPage() {
           })
         }
       } else {
+        console.log(`💾 [SAVE] Guardando ARTÍCULO ORIGINAL en idioma: ${originalLanguage}`)
+        
+        // 🛡️ PROTECCIÓN: Solo guardar si realmente estamos en el idioma original
+        if (currentLanguage !== originalLanguage) {
+          throw new Error(`⛔ ERROR CRÍTICO: Intentando guardar en artículo original pero el idioma actual es ${currentLanguage} y el original es ${originalLanguage}. Operación cancelada.`)
+        }
+        
         // Guardar artículo original con imagen y categorías
         await plannerArticlesService.update(articleId, wpData)
+        console.log(`✅ [SAVE] Artículo original (${originalLanguage}) guardado correctamente`)
+        
         // Actualizar el estado local sin recargar
         setArticle(prev => prev ? { ...prev, ...wpData } : null)
       }
       
-      console.log('✅ Artículo guardado con imagen y categorías')
+      console.log('✅ [SAVE] Guardado completado exitosamente')
     } catch (err) {
       alert('Error al guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     } finally {
@@ -703,9 +752,16 @@ export default function ArticleEditorPage() {
       setTranslationProgress(95)
       setCurrentTranslationStep('loading-translation')
       
-      // 🔥 CAMBIAR AUTOMÁTICAMENTE AL IDIOMA DE LA TRADUCCIÓN RECIÉN CREADA
-      // NO recargar todo el artículo, solo cambiar de idioma
-      await loadArticle() // Solo para actualizar available_languages
+      // 🔥 RECARGAR ARTÍCULO para actualizar available_languages
+      console.log('🔄 [TRANSLATE] Recargando artículo para actualizar idiomas disponibles...')
+      await loadArticle()
+      
+      // 🛡️ PROTECCIÓN: Asegurar que el idioma actual sigue siendo el original después de recargar
+      const reloadedOriginalLang = article?.language || 'es'
+      if (currentLanguage !== reloadedOriginalLang) {
+        console.warn('⚠️ [TRANSLATE] El idioma actual no coincide con el original después de recargar')
+        setCurrentLanguage(reloadedOriginalLang)
+      }
       
       setTranslationProgress(100)
       setCurrentTranslationStep('completed')
