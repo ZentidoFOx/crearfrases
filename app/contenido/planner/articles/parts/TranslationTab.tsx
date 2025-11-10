@@ -76,11 +76,17 @@ export function TranslationTab({
         content: editedContent
       }
 
-      // Llamar al servicio de traducción
-      const result = await translatorService.translateContent(
+      // Llamar al servicio de traducción con streaming
+      const result = await translatorService.translateWithStreaming(
         translationData,
         languageCode,
-        languageName
+        languageName,
+        // Callback vacío para chunks (no mostramos en tiempo real aquí)
+        () => {},
+        // Opciones
+        {
+          modelId: 1 // Modelo por defecto
+        }
       )
 
       // Crear objeto de traducción

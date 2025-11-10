@@ -28,64 +28,6 @@ interface TranslatedData {
 class TranslatorService {
 
   /**
-   * Translate complete content including SEO metadata
-   */
-  async translateContent(
-    data: TranslationData,
-    targetLanguage: string,
-    targetLanguageName: string
-  ): Promise<TranslatedData> {
-    try {
-      console.log(`🌐 Iniciando traducción a ${targetLanguageName} (${targetLanguage})`)
-
-      const token = TokenManager.getAccessToken()
-      if (!token) {
-        throw new Error('No authentication token found')
-      }
-
-      const response = await fetch('/api/translate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          data,
-          targetLanguage,
-          targetLanguageName,
-          streaming: false
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        throw new Error(errorData?.error?.message || `HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Translation failed')
-      }
-
-      console.log('✅ Traducción completada')
-      console.log(`   Título SEO: ${result.data.title}`)
-      console.log(`   Título H1: ${result.data.h1Title}`)
-      console.log(`   Keyword: ${result.data.keyword}`)
-
-      return result.data as TranslatedData
-
-    } catch (error: any) {
-      console.error('❌ Error en traducción:', error)
-      
-      if (error.message?.includes('Failed to fetch') || error.message?.includes('fetch')) {
-        throw new Error('Error de conexión. Verifica tu conexión a internet.')
-      }
-      
-      throw new Error(`Error al traducir: ${error.message || 'Error desconocido'}`)
-    }
-  }
-
-  /**
    * Construir prompt para traducción
    */
   private buildTranslationPrompt(
