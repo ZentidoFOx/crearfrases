@@ -22,6 +22,7 @@ import { translatorService } from '@/lib/api/translator'
 import { humanizeContentService } from '@/lib/api/humanize-content'
 // Removido: import { optimizeReadability } from '@/lib/api/readability-optimizer' - Ahora usamos completeOptimizerService
 import { completeOptimizerService, type OptimizationResult } from '@/lib/api/complete-optimizer'
+import { seoOptimizerService, type SEOOptimizationResult } from '@/lib/api/seo-optimizer'
 import {
   ArticleHeader,
   AnalyticsTab,
@@ -1121,15 +1122,10 @@ export default function ArticleEditorPage() {
   }
 
   /**
-   * 🎯 OPTIMIZACIÓN COMPLETA YOAST SEO
+   * 🎯 SEO OPTIMIZER - SISTEMA COMPLETAMENTE NUEVO
    * 
-   * Esta función usa el NUEVO SISTEMA COMPLETO de optimización que:
-   * - Analiza TODOS los problemas de Yoast SEO
-   * - Optimiza con IA especializada
-   * - Aplica optimizaciones automáticas adicionales
-   * - Soluciona: palabras de transición, longitud de oraciones, keywords en negrita
-   * 
-   * NO usa el sistema anterior de readability-optimizer
+   * Envía TODO el artículo del WYSIWYG editor a la IA para optimización completa
+   * de SEO y legibilidad. Sistema creado desde cero.
    */
   const handleOptimizeReadability = async () => {
     if (!article || !articleId) return
@@ -1146,34 +1142,22 @@ export default function ArticleEditorPage() {
         throw new Error('No hay contenido para optimizar')
       }
 
-      console.log('🎯 Iniciando optimización completa de Yoast SEO...')
+      console.log('🎯 [SEO-OPTIMIZER] Iniciando optimización SEO completa...')
       
-      // 🔍 Analizar problemas actuales
-      const issues = await completeOptimizerService.analyzeContent({
+      // 🚀 USAR EL NUEVO SEO OPTIMIZER
+      const result = await seoOptimizerService.optimizeArticle({
         content: htmlContent,
         keyword,
         title,
         metaDescription,
         language: displayArticle?.language || 'es'
-      })
+      }, selectedHumanizeModelId || 16)
       
-      console.log('📊 Problemas detectados:', issues.length)
-      issues.forEach(issue => {
-        console.log(`  - ${issue.type}: ${issue.title}`)
-      })
+      if (!result.success) {
+        throw new Error(result.message)
+      }
       
-      // 🎯 Optimizar completamente
-      const result = await completeOptimizerService.optimizeComplete({
-        content: htmlContent,
-        keyword,
-        title,
-        metaDescription,
-        language: displayArticle?.language || 'es'
-      }, selectedHumanizeModelId || 1)
-      
-      console.log('✅ Optimización completada:')
-      console.log('  - Problemas solucionados:', result.issuesFixed.length)
-      console.log('  - Problemas restantes:', result.remainingIssues.length)
+      console.log('✅ [SEO-OPTIMIZER] Optimización completada exitosamente')
       console.log('  - Mejoras aplicadas:', result.improvements)
       
       // Actualizar contenido en el editor
@@ -1201,28 +1185,27 @@ export default function ArticleEditorPage() {
         } : null)
       }
       
-      // Mostrar resumen de optimización
-      const summary = `✅ OPTIMIZACIÓN COMPLETA EXITOSA
+      // Mostrar resumen de optimización SEO
+      const summary = `🎯 SEO OPTIMIZER - OPTIMIZACIÓN EXITOSA
 
-🔧 Mejoras aplicadas:
+🚀 Mejoras aplicadas:
 • Palabras de transición agregadas: ${result.improvements.transitionWordsAdded}
 • Oraciones acortadas: ${result.improvements.sentencesShortened}
 • Keywords en negrita: ${result.improvements.keywordsBolded}
-• Párrafos optimizados: ${result.improvements.paragraphsOptimized}
+• Problemas SEO solucionados: ${result.improvements.seoIssuesFixed}
 
-📊 Estadísticas:
+📄 Estadísticas:
 • Palabras de transición: ${result.beforeStats.transitionWords} → ${result.afterStats.transitionWords}
 • Oraciones largas: ${result.beforeStats.longSentences} → ${result.afterStats.longSentences}
 • Keywords en negrita: ${result.beforeStats.boldKeywords} → ${result.afterStats.boldKeywords}
 
-✅ Problemas solucionados: ${result.issuesFixed.length}
-⚠️ Problemas restantes: ${result.remainingIssues.length}`
+✅ Artículo optimizado completamente para SEO y legibilidad`
       
       alert(summary)
       
     } catch (error: any) {
-      console.error('❌ Error en optimización completa:', error)
-      alert(`Error al optimizar: ${error.message}`)
+      console.error('❌ [SEO-OPTIMIZER] Error en optimización:', error)
+      alert(`❌ Error en SEO Optimizer: ${error.message}`)
     } finally {
       setOptimizingReadability(false)
     }

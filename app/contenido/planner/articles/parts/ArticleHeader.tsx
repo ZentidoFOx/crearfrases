@@ -541,7 +541,7 @@ export function ArticleHeader({
                   ) : (
                     <>
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                      Optimizar Legibilidad
+                      SEO Optimizer
                     </>
                   )}
                 </Button>
