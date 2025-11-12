@@ -113,8 +113,8 @@ export function SEOAnalyzer({
     }
 
     // 2. ✅ ANÁLISIS DE ESTRUCTURA
-    const h2Count = (content.match(/^## /gm) || []).length
-    const h3Count = (content.match(/^### /gm) || []).length
+    const h2Count = (content.match(/<h2[^>]*>/gi) || content.match(/^## /gm) || []).length
+    const h3Count = (content.match(/<h3[^>]*>/gi) || content.match(/^### /gm) || []).length
 
     if (h2Count === 0) {
       detectedIssues.push({
@@ -153,7 +153,7 @@ export function SEOAnalyzer({
     }
 
     // 3. ✅ ANÁLISIS DE ENLACES
-    const linkCount = (content.match(/\[.*?\]\(.*?\)/g) || []).length
+    const linkCount = (content.match(/\[.*?\]\(.*?\)/g) || content.match(/<a[^>]*>/gi) || []).length
     
     if (linkCount === 0) {
       detectedIssues.push({

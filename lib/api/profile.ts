@@ -98,19 +98,59 @@ class ProfileService {
    * Change password
    */
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    const response = await fetch(API_CONFIG.user.password, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: this.getHeaders(),
-      body: JSON.stringify({
-        current_password: currentPassword,
-        new_password: newPassword
+    try {
+      console.log('🔐 [CHANGE-PASSWORD] Enviando solicitud de cambio de contraseña...')
+      console.log('  - Endpoint:', API_CONFIG.user.password)
+      console.log('  - Current password length:', currentPassword.length)
+      console.log('  - New password length:', newPassword.length)
+      
+      const response = await fetch(API_CONFIG.user.password, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: this.getHeaders(),
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword
+        })
       })
-    })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to change password')
+      console.log('📥 [CHANGE-PASSWORD] Respuesta recibida:', response.status, response.statusText)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ [CHANGE-PASSWORD] Error del servidor:', errorText)
+        
+        try {
+          const error = JSON.parse(errorText)
+          console.error('❌ [CHANGE-PASSWORD] Error parseado:', error)
+          
+          // Mensajes de error más específicos
+          if (error.error?.code === 'INVALID_CURRENT_PASSWORD') {
+            throw new Error('La contraseña actual es incorrecta')
+          }
+          if (error.error?.code === 'WEAK_PASSWORD') {
+            throw new Error('La nueva contraseña no cumple con los requisitos de seguridad')
+          }
+          if (error.error?.message) {
+            throw new Error(error.error.message)
+          }
+          if (error.message) {
+            throw new Error(error.message)
+          }
+          
+          throw new Error('Error al cambiar la contraseña. Por favor, intenta de nuevo.')
+        } catch (parseError) {
+          // Si no es JSON válido
+          console.error('❌ [CHANGE-PASSWORD] No se pudo parsear error:', parseError)
+          throw new Error(`Error del servidor (${response.status}): ${errorText.substring(0, 100)}`)
+        }
+      }
+
+      const result = await response.json()
+      console.log('✅ [CHANGE-PASSWORD] Contraseña cambiada exitosamente:', result)
+    } catch (error: any) {
+      console.error('❌ [CHANGE-PASSWORD] Error general:', error)
+      throw error
     }
   }
 

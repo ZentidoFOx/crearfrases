@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { flushSync } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,15 +12,16 @@ import { Header } from '@/components/header'
 import { Sidebar } from '@/components/sidebar'
 import { plannerArticlesService, type PlannerArticle } from '@/lib/api/planner-articles'
 import { aiModelsService } from '@/lib/api/ai-models'
-import { markdownToHtml, htmlToMarkdown } from '@/components/contenido/planner/parts/step3/utils'
-import { WysiwygEditor } from '@/components/editor'
+import { WysiwygEditor } from '@/components/editor/wysiwyg-editor'
 import { useOptimization } from '@/components/contenido/planner/parts/step3/hooks/useOptimization'
 import { useWordPress } from '@/components/contenido/planner/parts/step3/hooks/useWordPress'
 import { useLanguages } from '@/components/contenido/planner/parts/step3/hooks/useLanguages'
 import { useWebsite } from '@/contexts/website-context'
 import { publishToWordPress } from '@/lib/api/wordpress-publisher'
 import { translatorService } from '@/lib/api/translator'
-import { humanizerService } from '@/lib/api/humanizer'
+import { humanizeContentService } from '@/lib/api/humanize-content'
+// Removido: import { optimizeReadability } from '@/lib/api/readability-optimizer' - Ahora usamos completeOptimizerService
+import { completeOptimizerService, type OptimizationResult } from '@/lib/api/complete-optimizer'
 import {
   ArticleHeader,
   AnalyticsTab,
@@ -52,17 +52,18 @@ export default function ArticleEditorPage() {
   const [translating, setTranslating] = useState(false)
   const [translationProgress, setTranslationProgress] = useState(0)
   const [currentTranslationStep, setCurrentTranslationStep] = useState('')
-  const [translatingWithoutStream, setTranslatingWithoutStream] = useState(false)
+  const [isStreamingTranslation, setIsStreamingTranslation] = useState(false)
   const [humanizing, setHumanizing] = useState(false)
   const [humanizeProgress, setHumanizeProgress] = useState(0)
   const [currentHumanizeStep, setCurrentHumanizeStep] = useState('')
-  const [humanizingWithoutStream, setHumanizingWithoutStream] = useState(false)
+  const [isStreamingHumanize, setIsStreamingHumanize] = useState(false)
+  const [optimizingReadability, setOptimizingReadability] = useState(false)
+  const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null)
   const [currentTranslationData, setCurrentTranslationData] = useState<any>(null)
   const [targetLanguageName, setTargetLanguageName] = useState<string>('')
   const [selectedHumanizeModelId, setSelectedHumanizeModelId] = useState<number | null>(null)
   const [showModelSelector, setShowModelSelector] = useState(false)
   const [publishedPostId, setPublishedPostId] = useState<number>()
-  const [lastUpdateTime, setLastUpdateTime] = useState(0)
   const [availableModels, setAvailableModels] = useState<any[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
 
@@ -79,6 +80,7 @@ export default function ArticleEditorPage() {
     displayArticle // Pasar datos del artículo para restaurar imagen y categorías
   )
   const languagesHook = useLanguages(activeWebsite?.url)
+  
   useEffect(() => {
     if (articleId) loadArticle()
   }, [articleId])
@@ -89,9 +91,9 @@ export default function ArticleEditorPage() {
 
   useEffect(() => {
     if (article?.content) {
-      // Convertir markdown a HTML para el editor WYSIWYG
-      const htmlContent = markdownToHtml(article.content)
-      setEditedContent(htmlContent)
+      // El contenido ya viene en HTML desde el backend
+      console.log('📄 Cargando contenido del artículo (HTML)')
+      setEditedContent(article.content)
       setEditorKey(prev => prev + 1) // Forzar re-render del editor
     }
   }, [article?.content, articleId]) // Agregar articleId como dependencia para re-renderizar al cambiar de artículo
@@ -115,9 +117,8 @@ export default function ArticleEditorPage() {
       // Establecer idioma actual al idioma principal del artículo
       setCurrentLanguage(data.language || 'es')
       
-      // Convertir markdown a HTML para el editor
-      const htmlContent = markdownToHtml(data.content || '')
-      setEditedContent(htmlContent)
+      // El contenido ya viene en HTML desde el backend
+      setEditedContent(data.content || '')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar el artículo')
     } finally {
@@ -131,10 +132,9 @@ export default function ArticleEditorPage() {
       const models = await aiModelsService.getActiveModels()
       setAvailableModels(models)
       
-      // Seleccionar el modelo por defecto automáticamente
-      const defaultModel = models.find(m => m.is_default)
-      if (defaultModel && !selectedHumanizeModelId) {
-        setSelectedHumanizeModelId(defaultModel.id)
+      // Seleccionar el primer modelo activo automáticamente
+      if (models.length > 0 && !selectedHumanizeModelId) {
+        setSelectedHumanizeModelId(models[0].id)
       }
     } catch (err) {
       console.error('Error loading models:', err)
@@ -158,8 +158,7 @@ export default function ArticleEditorPage() {
       console.log('✅ [LANGUAGE] Mostrando artículo ORIGINAL')
       setCurrentLanguage(langCode)
       setCurrentTranslationData(null) // Limpiar datos de traducción
-      const htmlContent = markdownToHtml(article.content || '')
-      setEditedContent(htmlContent)
+      setEditedContent(article.content || '')
       setEditorKey(prev => prev + 1)
       return
     }
@@ -185,22 +184,23 @@ export default function ArticleEditorPage() {
       })
       
       // Crear objeto con datos de la traducción para mostrar en el UI
+      // 🔥 PRIORIZAR seo_data para campos traducidos
       setCurrentTranslationData({
         ...article,
         title: translation.title,
         h1_title: translation.h1_title,
-        keyword: translation.keyword,
+        keyword: translation.seo_data?.focus_keyword || translation.keyword,
         objective_phrase: translation.objective_phrase,
         keywords_array: translation.keywords_array,
-        meta_description: translation.meta_description,
+        meta_description: translation.seo_data?.meta_description || translation.meta_description,
+        slug: translation.seo_data?.slug || translation.slug,
         content: translation.content,
         seo_data: translation.seo_data,
         word_count: translation.word_count,
         language: translation.language
       })
       
-      const htmlContent = markdownToHtml(translation.content || '')
-      setEditedContent(htmlContent)
+      setEditedContent(translation.content || '')
       setEditorKey(prev => prev + 1)
     } catch (error: any) {
       console.error('❌ [LANGUAGE] Error al cargar traducción:', error)
@@ -224,16 +224,12 @@ export default function ArticleEditorPage() {
     
     setSaving(true)
     try {
-      // 🔥 Obtener contenido actual del editor
-      const editorElement = document.getElementById('wysiwyg-editor')
-      const currentEditorContent = editorElement?.innerHTML || editedContent
-      
-      // Convertir HTML a markdown antes de guardar
-      const markdownContent = htmlToMarkdown(currentEditorContent)
+      // 🔥 Obtener contenido actual del editor (ya es HTML)
+      const htmlContent = editedContent
       
       // 🔥 Preparar datos de WordPress para guardar
       const wpData: any = {
-        content: markdownContent
+        content: htmlContent
       }
       
       // Agregar imagen destacada si existe
@@ -350,10 +346,8 @@ export default function ArticleEditorPage() {
       setPublishProgress(5)
       await new Promise(resolve => setTimeout(resolve, 500))
       
-      // 🔥 Obtener contenido actual del editor
-      const editorElement = document.getElementById('wysiwyg-editor')
-      const currentEditorContent = editorElement?.innerHTML || editedContent
-      const markdownContent = htmlToMarkdown(currentEditorContent)
+      // 🔥 Obtener contenido actual del editor (ya es HTML)
+      const htmlContent = editedContent
       
       setPublishProgress(15)
       await new Promise(resolve => setTimeout(resolve, 300))
@@ -421,8 +415,18 @@ export default function ArticleEditorPage() {
           let langContent: string
           
           if (isMainLanguage) {
+            // 🔥 CRÍTICO: Si estamos viendo una traducción, NO usar editedContent
+            // Siempre cargar el contenido original del artículo para el idioma principal
+            const isViewingTranslation = currentLanguage !== (article.language || 'es')
+            
             langData = article
-            langContent = markdownContent
+            langContent = isViewingTranslation ? article.content : htmlContent
+            
+            console.log(`📋 Idioma principal ${langCode.toUpperCase()}:`, {
+              viewingTranslation: isViewingTranslation,
+              usingContentFrom: isViewingTranslation ? 'article.content (BD)' : 'htmlContent (editor)',
+              contentLength: langContent?.length || 0
+            })
           } else {
             // Cargar traducción desde la BD
             try {
@@ -612,7 +616,7 @@ export default function ArticleEditorPage() {
       return
     }
     
-    if (!confirm(`¿Traducir este artículo a ${targetLanguage.name}?\n\n✨ Verás el contenido traducirse en TIEMPO REAL mientras la IA trabaja.\n\nSe creará una traducción vinculada a este artículo.`)) return
+    if (!confirm(`¿Traducir este artículo a ${targetLanguage.name}?\n\nSe creará una traducción completa del artículo.`)) return
     
     setShowLanguageMenu(false)
     setTranslating(true)
@@ -620,176 +624,310 @@ export default function ArticleEditorPage() {
     setTargetLanguageName(targetLanguage.name)
     
     try {
-      // Paso 1: Preparando y guardando artículo original (0-20%)
       setCurrentTranslationStep('preparing')
-      setTranslationProgress(5)
-      
-      // 🔥 OBTENER EL CONTENIDO ACTUAL DEL EDITOR (incluyendo imágenes recién añadidas)
-      const editorElement = document.getElementById('wysiwyg-editor')
-      const currentEditorContent = editorElement?.innerHTML || editedContent
-      const markdownWithImages = htmlToMarkdown(currentEditorContent)
-      
-      // 💾 GUARDAR EL CONTENIDO ACTUALIZADO EN EL ARTÍCULO ORIGINAL (con imágenes)
       setTranslationProgress(10)
-      console.log('💾 Guardando contenido actualizado del artículo original...')
-      await plannerArticlesService.update(articleId, { content: markdownWithImages })
       
-      setTranslationProgress(15)
-      await new Promise(resolve => setTimeout(resolve, 300))
+      const htmlContent = editedContent
+      
+      if (!htmlContent || htmlContent.trim().length === 0) {
+        throw new Error('No hay contenido para traducir')
+      }
+      
+      console.log('🚀 [TRANSLATE] Iniciando traducción en 2 PASOS')
+      
+      setCurrentTranslationStep('translating-seo')  // PASO 1: Campos SEO
+      setTranslationProgress(10)
       
       const translationData = {
         title: article.title,
+        seoTitle: article.seo_title || article.title,
         h1Title: article.h1_title || article.title,
-        description: article.meta_description || '',
         keyword: article.keyword,
         objectivePhrase: article.objective_phrase || '',
         keywords: article.keywords_array || [],
-        content: markdownWithImages
+        relatedKeywords: article.related_keywords || [],
+        slug: article.slug || '',
+        description: article.meta_description || '',
+        content: htmlContent
       }
       
-      setTranslationProgress(20)
-      setCurrentTranslationStep('translating-content')
-      
-      // 🔥 TRADUCIR CON STREAMING EN TIEMPO REAL
+      let translated: any
       let accumulatedTranslation = ''
-      let streamingProgress = 20
+      let usedStreaming = false
       
-      const translated = await translatorService.translateWithStreaming(
-        translationData,
-        targetLangCode,
-        targetLanguage.name,
-        // Callback que se llama con cada chunk de traducción
-        (chunk, accumulated) => {
-          accumulatedTranslation = accumulated
-          
-          // Actualizar progreso conforme avanza el streaming (20% a 80%)
-          const progress = Math.min(80, 20 + (accumulated.length / markdownWithImages.length) * 60)
-          streamingProgress = progress
-          setTranslationProgress(Math.round(progress))
-          
-          // Extraer solo el contenido traducido del formato
-          const contentMatch = accumulated.match(/CONTENT:\n([\s\S]+)/)
-          if (contentMatch && contentMatch[1]) {
-            const translatedMarkdown = contentMatch[1]
+      try {
+        // 🔥 PASO 2: Traducir contenido con STREAMING
+        setCurrentTranslationStep('translating-content')  // PASO 2: Contenido
+        setTranslationProgress(20)
+        setIsStreamingTranslation(true) // ← Activar modo streaming (efecto typewriter)
+        
+        const translatedData = await translatorService.translateWithStreaming(
+          translationData,
+          targetLangCode,
+          targetLanguage.name,
+          (chunk, accumulated) => {
+            accumulatedTranslation = accumulated
+            usedStreaming = true
             
-            // ✍️ EFECTO DE ESCRITURA: Actualizar cada 100ms para efecto typewriter visible
-            const now = Date.now()
-            if (now - lastUpdateTime >= 100) {
-              setLastUpdateTime(now)
-              
-              // Actualizar editor con efecto de escritura
-              const htmlContent = markdownToHtml(translatedMarkdown)
-              setEditedContent(htmlContent)
-              // El auto-scroll y efecto typewriter se manejan en WysiwygEditor
-              
-              console.log(`🌐 Traducción chunk: +${chunk.length} chars | Total: ${accumulated.length}`)
+            // Actualizar progreso (20% a 75%)
+            const progress = Math.min(75, 20 + (accumulated.length / htmlContent.length) * 55)
+            setTranslationProgress(Math.round(progress))
+            
+            // 🔥 NUEVO: En el sistema de 2 pasos, accumulated ES directamente el HTML traducido
+            // Actualizar editor con efecto typewriter en tiempo real
+            if (accumulated && accumulated.length > 50) {
+              setEditedContent(accumulated)
+              console.log('📝 [STREAMING] Actualizando editor:', accumulated.length, 'chars')
+            }
+          },
+          {
+            modelId: selectedHumanizeModelId || 1,
+            onFallbackToNormal: () => {
+              console.log('⚠️ [TRANSLATE] Fallback a modo sin streaming - Mostrando skeleton')
+              setIsStreamingTranslation(false) // Desactivar streaming, mostrar skeleton
             }
           }
-        },
-        // Opciones con fallback
-        {
-          modelId: selectedHumanizeModelId || 1,
-          onFallbackToNormal: () => {
-            // 🔥 Cuando se detecta fallback, mostrar skeleton
-            console.log('🔄 Activando modo sin streaming con skeleton para traducción...')
-            setTranslatingWithoutStream(true)
-          }
+        )
+        
+        translated = {
+          title: translatedData.title,
+          seoTitle: translatedData.seoTitle,
+          h1Title: translatedData.h1Title,
+          keyword: translatedData.keyword,
+          objectivePhrase: translatedData.objectivePhrase,
+          keywords: translatedData.keywords,
+          relatedKeywords: translatedData.relatedKeywords,
+          slug: translatedData.slug,
+          description: translatedData.description,
+          content: translatedData.content
         }
-      )
-      
-      // 🔥 Actualización FINAL forzada con el contenido completo
-      const finalContentMatch = accumulatedTranslation.match(/CONTENT:\n([\s\S]+)/)
-      if (finalContentMatch && finalContentMatch[1]) {
-        const finalHtmlContent = markdownToHtml(finalContentMatch[1])
-        setEditedContent(finalHtmlContent)
+        
+        console.log('✅ [TRANSLATE] Traducción con streaming completada')
+        console.log('🔍 [TRANSLATE] Datos recibidos de la IA:', {
+          keyword_original: article.keyword,
+          keyword_traducido: translatedData.keyword,
+          title_traducido: translatedData.title?.substring(0, 50),
+          seoTitle_traducido: translatedData.seoTitle?.substring(0, 50),
+          slug_traducido: translatedData.slug
+        })
+        
+      } catch (streamError: any) {
+        // Solo hacer fallback si es error de conexión, NO si es error de validación
+        const isConnectionError = streamError.message?.includes('fetch') || 
+                                   streamError.message?.includes('network') ||
+                                   streamError.message?.includes('conexión')
+        
+        const isValidationError = streamError.message?.includes('keyword') ||
+                                   streamError.message?.includes('Focus Keyword')
+        
+        if (isValidationError) {
+          // Si es error de validación, propagar el error SIN fallback
+          console.error('❌ [TRANSLATE] Error de validación, NO hacer fallback:', streamError.message)
+          throw streamError
+        }
+        
+        if (isConnectionError) {
+          console.log('⚠️ [TRANSLATE] Error de conexión, usando método simple...', streamError)
+          
+          // 🔄 FALLBACK: Usar método simple sin streaming
+          setIsStreamingTranslation(false)
+          setTranslationProgress(30)
+          
+          translated = await translatorService.translateArticleSimple(
+            article.title,
+            article.keyword,
+            htmlContent,
+            targetLangCode,
+            targetLanguage.name,
+            selectedHumanizeModelId || 1
+          )
+          
+          console.log('✅ [TRANSLATE] Traducción simple completada')
+        } else {
+          // Otro tipo de error, propagar
+          throw streamError
+        }
       }
       
       setTranslationProgress(80)
       
-      // 🔍 VALIDACIÓN FINAL antes de guardar
-      console.log('🔍 Validación final antes de guardar traducción:')
-      console.log('  Idioma original:', article.language || 'es')
-      console.log('  Idioma destino:', targetLangCode)
-      console.log('  Título original:', article.title)
-      console.log('  Título traducido:', translated.title)
-      console.log('  Contenido original (primeros 100 chars):', markdownWithImages.substring(0, 100))
-      console.log('  Contenido traducido (primeros 100 chars):', translated.content.substring(0, 100))
-      
-      // ⚠️ VALIDAR que el contenido NO sea el mismo
-      if (translated.content === markdownWithImages) {
-        throw new Error('❌ ERROR: La traducción es idéntica al original. No se guardará.')
-      }
-      
-      // ⚠️ VALIDAR que el contenido traducido no esté en español si se tradujo a otro idioma
-      if (targetLangCode !== 'es') {
-        const spanishWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'en', 'que', 'descubre', 'artículo']
-        const contentLower = translated.content.toLowerCase()
-        const spanishWordCount = spanishWords.filter(word => contentLower.includes(word)).length
-        
-        if (spanishWordCount > 5) {
-          console.warn(`⚠️ ADVERTENCIA: El contenido traducido parece contener ${spanishWordCount} palabras en español`)
-          console.warn('Preview del contenido:', translated.content.substring(0, 300))
-        }
-      }
-      
-      console.log('✅ Validación pasada, guardando traducción...')
-      
-      // Paso 4: Guardando (80-100%)
-      setCurrentTranslationStep('saving')
-      setTranslationProgress(85)
-      
-      await plannerArticlesService.createTranslation(articleId, {
-        language: targetLangCode,
+      console.log('📊 [TRANSLATE] Resultado final:', {
         title: translated.title,
-        h1_title: translated.h1Title,
-        meta_description: translated.description,
         keyword: translated.keyword,
-        objective_phrase: translated.objectivePhrase,
-        keywords_array: translated.keywords,
-        content: translated.content  // ✅ Contenido ya validado
+        contentLength: translated.content.length,
+        usedStreaming
       })
       
-      setTranslationProgress(95)
-      setCurrentTranslationStep('loading-translation')
-      
-      // 🔥 RECARGAR ARTÍCULO para actualizar available_languages
-      console.log('🔄 [TRANSLATE] Recargando artículo para actualizar idiomas disponibles...')
-      await loadArticle()
-      
-      // 🛡️ PROTECCIÓN: Asegurar que el idioma actual sigue siendo el original después de recargar
-      const reloadedOriginalLang = article?.language || 'es'
-      if (currentLanguage !== reloadedOriginalLang) {
-        console.warn('⚠️ [TRANSLATE] El idioma actual no coincide con el original después de recargar')
-        setCurrentLanguage(reloadedOriginalLang)
+      // Validar
+      if (!translated.title || !translated.keyword || !translated.content) {
+        throw new Error('Traducción incompleta')
       }
+      
+      setCurrentTranslationStep('saving')
+      setTranslationProgress(90)
+      
+      // Validar que el keyword traducido no esté vacío
+      if (!translated.keyword || translated.keyword.trim() === '') {
+        console.error('❌ [TRANSLATE] ERROR: Keyword traducido está vacío')
+        throw new Error('La traducción no incluyó el Focus Keyword. Por favor, intenta de nuevo.')
+      }
+      
+      // Validar que el keyword aparezca en los campos clave
+      const lowerKeyword = translated.keyword.toLowerCase()
+      const lowerTitle = translated.title?.toLowerCase() || ''
+      const lowerSeoTitle = translated.seoTitle?.toLowerCase() || ''
+      const lowerH1 = translated.h1Title?.toLowerCase() || ''
+      const lowerDescription = translated.description?.toLowerCase() || ''
+      const lowerContent = translated.content?.toLowerCase() || ''
+      
+      const keywordInTitle = lowerTitle.includes(lowerKeyword)
+      const keywordInSeoTitle = lowerSeoTitle.includes(lowerKeyword)
+      const keywordInH1 = lowerH1.includes(lowerKeyword)
+      const keywordInDescription = lowerDescription.includes(lowerKeyword)
+      const keywordCount = (lowerContent.match(new RegExp(lowerKeyword, 'g')) || []).length
+      
+      console.log('🔍 [TRANSLATE] Validación de Focus Keyword:', {
+        keyword: translated.keyword,
+        en_title: keywordInTitle,
+        en_seo_title: keywordInSeoTitle,
+        en_h1: keywordInH1,
+        en_description: keywordInDescription,
+        veces_en_contenido: keywordCount
+      })
+      
+      // Advertir si el keyword no aparece en lugares clave
+      if (!keywordInSeoTitle && !keywordInTitle) {
+        console.warn('⚠️ [TRANSLATE] ADVERTENCIA: Focus Keyword no aparece en SEO Title ni Title')
+      }
+      if (keywordCount < 3) {
+        console.warn(`⚠️ [TRANSLATE] ADVERTENCIA: Focus Keyword solo aparece ${keywordCount} veces en el contenido (recomendado: 5-7)`)
+      }
+      
+      // 🔥 VERIFICAR qué keyword traducido recibimos
+      console.log('🔍 [TRANSLATE] VERIFICANDO KEYWORD RECIBIDO:')
+      console.log('  - keyword original (español):', article.keyword)
+      console.log('  - keyword traducido (IA):', translated.keyword)
+      console.log('  - ¿Son iguales?:', translated.keyword === article.keyword)
+      
+      // Si el keyword NO fue traducido (sigue igual al original), hay un problema
+      if (translated.keyword === article.keyword) {
+        console.error('❌ [TRANSLATE] ERROR CRÍTICO: La IA NO tradujo el keyword!')
+        console.error('   Se esperaba keyword en', targetLanguage.name)
+        console.error('   Pero se recibió:', translated.keyword)
+      }
+      
+      // Preparar seo_data JSON con todos los campos SEO adicionales
+      const seoData = {
+        seo_title: translated.seoTitle || translated.title,
+        related_keywords: translated.relatedKeywords || [],
+        focus_keyword: translated.keyword,  // ← Focus keyword traducido (DEBE estar en inglés)
+        meta_description: translated.description || article.meta_description || '',
+        slug: translated.slug || translated.keyword.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\-]/g, '')
+      }
+      
+      // Preparar datos de traducción con estructura correcta del backend
+      const translationPayload = {
+        language: targetLangCode,
+        title: translated.title,
+        h1_title: translated.h1Title || translated.title,
+        keyword: translated.keyword,  // ← Focus keyword principal traducido
+        content: translated.content,
+        meta_description: translated.description || article.meta_description || '',
+        objective_phrase: translated.objectivePhrase || article.objective_phrase || '',
+        keywords_array: translated.keywords || article.keywords_array || [],
+        slug: translated.slug || translated.keyword.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\-]/g, ''),
+        seo_data: seoData,  // ← JSON con datos SEO adicionales
+        word_count: translated.content.split(/\s+/).filter((w: string) => w.length > 0).length
+      }
+      
+      // Log detallado COMPLETO antes de guardar
+      console.log('💾 [TRANSLATE] ===== PAYLOAD COMPLETO A ENVIAR AL BACKEND =====')
+      console.log('Language:', translationPayload.language)
+      console.log('🎯 KEYWORD:', translationPayload.keyword)
+      console.log('Title:', translationPayload.title)
+      console.log('H1 Title:', translationPayload.h1_title)
+      console.log('Meta Description:', translationPayload.meta_description)
+      console.log('Slug:', translationPayload.slug)
+      console.log('🔥 SEO_DATA (JSON):', JSON.stringify(translationPayload.seo_data, null, 2))
+      console.log('Keywords Array:', translationPayload.keywords_array)
+      console.log('Word Count:', translationPayload.word_count)
+      console.log('Content Length:', translationPayload.content?.length)
+      console.log('============================================')
+      
+      // Guardar traducción en BD
+      console.log('📤 [TRANSLATE] Enviando al backend...')
+      await plannerArticlesService.createTranslation(articleId, translationPayload)
+      
+      console.log('✅ [TRANSLATE] Traducción guardada correctamente en BD')
+      
+      setTranslationProgress(95)
+      
+      // Recargar artículo para obtener available_languages actualizado
+      const reloadedArticle = await plannerArticlesService.getById(articleId)
+      setArticle(reloadedArticle)
+      
+      setTranslationProgress(95)
+      
+      // Cargar la traducción recién creada desde el servidor
+      console.log('📥 [TRANSLATE] Cargando traducción guardada desde BD...')
+      const savedTranslation = await plannerArticlesService.getTranslation(articleId, targetLangCode)
+      
+      console.log('✅ [TRANSLATE] Traducción cargada desde BD:', {
+        '🎯 KEYWORD PRINCIPAL': savedTranslation.keyword,
+        'keyword_en_seo_data': savedTranslation.seo_data?.focus_keyword,
+        title: savedTranslation.title?.substring(0, 50),
+        h1_title: savedTranslation.h1_title?.substring(0, 50),
+        meta_description: savedTranslation.meta_description?.substring(0, 50),
+        slug: savedTranslation.slug,
+        has_seo_data: !!savedTranslation.seo_data,
+        seo_data_completo: savedTranslation.seo_data
+      })
       
       setTranslationProgress(100)
-      setCurrentTranslationStep('completed')
       
-      // Esperar un momento para que el usuario vea el progreso completado
-      await new Promise(resolve => setTimeout(resolve, 800))
+      // Cambiar al idioma traducido con TODOS los datos
+      setCurrentLanguage(targetLangCode)
+      setEditedContent(savedTranslation.content)
+      setEditorKey(prev => prev + 1)
       
-      // Cambiar automáticamente al idioma traducido
-      if (handleLanguageChange) {
-        await handleLanguageChange(targetLangCode)
-      }
+      // Actualizar currentTranslationData con TODOS los campos de la traducción guardada
+      // 🔥 USAR DATOS DE seo_data como prioridad para campos traducidos
+      setCurrentTranslationData({
+        ...reloadedArticle,
+        title: savedTranslation.title,
+        h1_title: savedTranslation.h1_title,
+        keyword: savedTranslation.seo_data?.focus_keyword || savedTranslation.keyword,  // ← Priorizar seo_data
+        objective_phrase: savedTranslation.objective_phrase,
+        keywords_array: savedTranslation.keywords_array,
+        meta_description: savedTranslation.seo_data?.meta_description || savedTranslation.meta_description,  // ← Priorizar seo_data
+        slug: savedTranslation.seo_data?.slug || savedTranslation.slug,  // ← Priorizar seo_data
+        content: savedTranslation.content,
+        seo_data: savedTranslation.seo_data,  // ← CRÍTICO: incluir seo_data
+        word_count: savedTranslation.word_count,
+        language: targetLangCode
+      })
       
-      // Esperar un poco antes de limpiar la barra de progreso
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      console.log('🎯 [TRANSLATE] Estado actualizado con traducción completa:', {
+        keyword: savedTranslation.keyword,
+        seo_data_focus_keyword: savedTranslation.seo_data?.focus_keyword,
+        seo_data_seo_title: savedTranslation.seo_data?.seo_title?.substring(0, 50)
+      })
+      
+      await new Promise(resolve => setTimeout(resolve, 1000))
       setTranslationProgress(0)
       setCurrentTranslationStep('')
+      setIsStreamingTranslation(false)
+      
+      console.log('✅ [TRANSLATE] Todo completado')
       
     } catch (error: any) {
-      console.error('Error traduciendo:', error)
+      console.error('❌ [TRANSLATE] Error:', error)
       setTranslationProgress(0)
       setCurrentTranslationStep('')
-      
-      // Mostrar error específico
-      const errorMessage = error.message || 'Error desconocido'
-      alert(`❌ Error al traducir:\n\n${errorMessage}\n\nPor favor, verifica:\n- Tu conexión a internet\n- API key de Gemini configurada\n- Límite de cuota no excedido`)
+      setIsStreamingTranslation(false)
+      alert(`Error al traducir: ${error.message}`)
     } finally {
       setTranslating(false)
-      setTranslatingWithoutStream(false)
     }
   }
 
@@ -819,8 +957,7 @@ export default function ArticleEditorPage() {
       setCurrentTranslationData(null)
       
       // Recargar contenido del idioma principal
-      const htmlContent = markdownToHtml(article.content || '')
-      setEditedContent(htmlContent)
+      setEditedContent(article.content || '')
       setEditorKey(prev => prev + 1)
       
       alert('✅ Traducción eliminada correctamente')
@@ -830,6 +967,8 @@ export default function ArticleEditorPage() {
       setDeleting(false)
     }
   }
+
+  // REMOVIDO: analyzeSEOIssues - Ahora usamos completeOptimizerService
 
   const handleHumanize = async () => {
     if (!article || !articleId) return
@@ -846,75 +985,85 @@ export default function ArticleEditorPage() {
     setHumanizing(true)
     setHumanizeProgress(0)
     setCurrentHumanizeStep('Preparando contenido...')
+    setIsStreamingHumanize(true) // Activar modo streaming por defecto
     
     try {
-      // Obtener contenido actual del editor
-      const editorElement = document.getElementById('wysiwyg-editor')
-      const currentEditorContent = editorElement?.innerHTML || editedContent
-      const markdownContent = htmlToMarkdown(currentEditorContent)
+      // Obtener contenido actual del editor (ya es HTML del WYSIWYG)
+      const htmlContent = editedContent
+      
+      if (!htmlContent || htmlContent.trim().length === 0) {
+        throw new Error('No hay contenido para humanizar')
+      }
+      
+      console.log('📝 [HUMANIZE] Contenido a humanizar:', {
+        length: htmlContent.length,
+        hasHTML: htmlContent.includes('<'),
+        preview: htmlContent.substring(0, 100)
+      })
       
       setHumanizeProgress(10)
       setCurrentHumanizeStep('Analizando patrones de IA...')
       await new Promise(resolve => setTimeout(resolve, 300))
       
       setHumanizeProgress(20)
+      setCurrentHumanizeStep('Analizando problemas SEO...')
+      
+      // REMOVIDO: analyzeSEOIssues - Ahora usamos completeOptimizerService
+      console.log('🔍 [HUMANIZE] Usando nuevo sistema de optimización')
+      
       setCurrentHumanizeStep('Humanizando y optimizando contenido con IA...')
       
       // Determinar tono según el contexto
       const tone = article.meta_description?.includes('profesional') ? 'professional' : 'friendly'
       
-      // 🚀 HUMANIZAR Y OPTIMIZAR - TODO EN UNO CON STREAMING
-      let updateCount = 0
+      // 🚀 NUEVO SISTEMA - Humanizar con servicio limpio
+      let lastUpdateTime = 0
+      const UPDATE_THROTTLE_MS = 100
       
-      const result = await humanizerService.humanizeAndOptimize(
-        markdownContent,
-        displayArticle.keyword || '',
-        displayArticle.title || '',
-        selectedHumanizeModelId,
-        // Callback de progreso
-        (step: string, progress: number) => {
+      const result = await humanizeContentService.humanize(htmlContent, {
+        keyword: displayArticle.keyword || '',
+        articleTitle: displayArticle.title || '',
+        modelId: selectedHumanizeModelId,
+        tone: tone,
+        seoIssues: [], // REMOVIDO: Ahora usamos completeOptimizerService
+        onProgress: (step: string, progress: number) => {
           setCurrentHumanizeStep(step)
-          // Asegurar que el progreso esté entre 0-100 y sea entero
-          const clampedProgress = Math.min(100, Math.max(0, Math.round(progress)))
-          setHumanizeProgress(clampedProgress)
+          setHumanizeProgress(Math.round(progress))
         },
-        // 🔥 Callback de STREAMING - Mostrar contenido en tiempo real
-        (chunk, accumulated) => {
-          updateCount++
-          
-          // 🔥 Convertir markdown a HTML
-          const htmlContent = markdownToHtml(accumulated)
-          
-          // 🔥 FORZAR ACTUALIZACIÓN INMEDIATA (sin batching de React)
-          flushSync(() => {
-            setEditedContent(htmlContent)
-          })
-          
-          // Log cada 10 actualizaciones para no saturar la consola
-          if (updateCount % 10 === 0) {
-            console.log(`📝 Stream update #${updateCount}: +${chunk.length} chars | Total: ${accumulated.length} chars`)
+        onStreaming: (chunk: string, accumulated: string) => {
+          const now = Date.now()
+          if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
+            setEditedContent(accumulated)
+            lastUpdateTime = now
           }
         },
-        // Opciones
-        {
-          tone: tone,
-          targetAudience: 'viajeros y amantes de la naturaleza',
-          onFallbackToNormal: () => {
-            // 🔥 Cuando se detecta fallback, mostrar skeleton
-            console.log('🔄 Activando modo sin streaming con skeleton...')
-            setHumanizingWithoutStream(true)
-          }
+        onFallback: () => {
+          console.log('🔄 Activando modo sin streaming')
+          setIsStreamingHumanize(false)
         }
-      )
+      })
       
-      console.log(`✅ Streaming completado. Total de actualizaciones: ${updateCount}`)
+      console.log('✅ Humanización completada:', {
+        secciones: result.stats.sectionsProcessed,
+        negritas: result.stats.boldsAdded,
+        keyword: result.stats.keywordCount,
+        longitud: result.stats.humanizedLength
+      })
       
-      // 🔥 Actualización FINAL forzada con el contenido completo
-      const finalHtmlContent = markdownToHtml(result.content)
-      setEditedContent(finalHtmlContent)
+      if (!result.content || result.content.trim().length === 0) {
+        throw new Error('La humanización no generó contenido')
+      }
+      
+      // 🔥 Actualización FINAL con el contenido completo humanizado
+      setEditedContent(result.content)
+      
+      // Pequeña pausa para que React procese la última actualización
+      await new Promise(resolve => setTimeout(resolve, 200))
       
       setHumanizeProgress(85)
       setCurrentHumanizeStep('Guardando cambios...')
+      
+      console.log('💾 [DEBUG] Guardando contenido humanizado en BD...')
       
       // Verificar si estamos humanizando traducción o original
       const isTranslation = currentLanguage !== (article.language || 'es')
@@ -942,21 +1091,22 @@ export default function ArticleEditorPage() {
       
       // Mostrar mejoras aplicadas
       setTimeout(() => {
-        const seoInfo = result.seoIssuesFixed 
-          ? `\n\n🔍 Problemas SEO corregidos: ${result.seoIssuesFixed}`
-          : ''
+        const statsInfo = `\n\n📊 Estadísticas:
+• Secciones procesadas: ${result.stats.sectionsProcessed}
+• Negritas agregadas: ${result.stats.boldsAdded}
+• Keyword aparece: ${result.stats.keywordCount} veces`
         
         const improvementsText = result.improvements.length > 0 
-          ? `\n\nMejoras aplicadas:\n${result.improvements.map(i => `✓ ${i}`).join('\n')}`
+          ? `\n\n✅ Mejoras:\n${result.improvements.map(i => `• ${i}`).join('\n')}`
           : ''
         
-        alert(`✅ ¡Contenido humanizado y optimizado!${seoInfo}${improvementsText}\n\nOriginal: ${result.originalLength} caracteres\nOptimizado: ${result.humanizedLength} caracteres`)
+        alert(`✅ ¡Contenido humanizado!${statsInfo}${improvementsText}\n\nOriginal: ${result.stats.originalLength} caracteres\nOptimizado: ${result.stats.humanizedLength} caracteres`)
         
-        // Resetear TODOS los estados
+        // Resetear estados
         setHumanizing(false)
         setHumanizeProgress(0)
         setCurrentHumanizeStep('')
-        setEditorKey(prev => prev + 1) // Forzar re-render para mostrar negritas
+        setEditorKey(prev => prev + 1)
       }, 1500)
       
     } catch (error: any) {
@@ -966,10 +1116,115 @@ export default function ArticleEditorPage() {
       setHumanizing(false)
       setHumanizeProgress(0)
       setCurrentHumanizeStep('')
-      setHumanizingWithoutStream(false)
-      setTimeout(() => {
-        setHumanizing(false)
-      }, 100)
+      setIsStreamingHumanize(false)
+    }
+  }
+
+  /**
+   * 🎯 OPTIMIZACIÓN COMPLETA YOAST SEO
+   * 
+   * Esta función usa el NUEVO SISTEMA COMPLETO de optimización que:
+   * - Analiza TODOS los problemas de Yoast SEO
+   * - Optimiza con IA especializada
+   * - Aplica optimizaciones automáticas adicionales
+   * - Soluciona: palabras de transición, longitud de oraciones, keywords en negrita
+   * 
+   * NO usa el sistema anterior de readability-optimizer
+   */
+  const handleOptimizeReadability = async () => {
+    if (!article || !articleId) return
+
+    try {
+      setOptimizingReadability(true)
+      
+      const htmlContent = editedContent || article.content
+      const keyword = article.keyword || ''
+      const title = article.title || ''
+      const metaDescription = article.meta_description || ''
+      
+      if (!htmlContent || htmlContent.trim().length === 0) {
+        throw new Error('No hay contenido para optimizar')
+      }
+
+      console.log('🎯 Iniciando optimización completa de Yoast SEO...')
+      
+      // 🔍 Analizar problemas actuales
+      const issues = await completeOptimizerService.analyzeContent({
+        content: htmlContent,
+        keyword,
+        title,
+        metaDescription,
+        language: displayArticle?.language || 'es'
+      })
+      
+      console.log('📊 Problemas detectados:', issues.length)
+      issues.forEach(issue => {
+        console.log(`  - ${issue.type}: ${issue.title}`)
+      })
+      
+      // 🎯 Optimizar completamente
+      const result = await completeOptimizerService.optimizeComplete({
+        content: htmlContent,
+        keyword,
+        title,
+        metaDescription,
+        language: displayArticle?.language || 'es'
+      }, selectedHumanizeModelId || 1)
+      
+      console.log('✅ Optimización completada:')
+      console.log('  - Problemas solucionados:', result.issuesFixed.length)
+      console.log('  - Problemas restantes:', result.remainingIssues.length)
+      console.log('  - Mejoras aplicadas:', result.improvements)
+      
+      // Actualizar contenido en el editor
+      setEditedContent(result.optimizedContent)
+      setEditorKey(prev => prev + 1)
+      
+      // Actualizar artículo en base de datos
+      if (currentLanguage !== (article.language || 'es')) {
+        // Actualizar traducción
+        await plannerArticlesService.updateTranslation(
+          articleId,
+          currentLanguage,
+          { content: result.optimizedContent }
+        )
+      } else {
+        // Actualizar artículo original
+        await plannerArticlesService.update(articleId, { 
+          content: result.optimizedContent,
+          word_count: result.optimizedContent.split(/\s+/).length
+        })
+        setArticle(prev => prev ? {
+          ...prev,
+          content: result.optimizedContent,
+          word_count: result.optimizedContent.split(/\s+/).length
+        } : null)
+      }
+      
+      // Mostrar resumen de optimización
+      const summary = `✅ OPTIMIZACIÓN COMPLETA EXITOSA
+
+🔧 Mejoras aplicadas:
+• Palabras de transición agregadas: ${result.improvements.transitionWordsAdded}
+• Oraciones acortadas: ${result.improvements.sentencesShortened}
+• Keywords en negrita: ${result.improvements.keywordsBolded}
+• Párrafos optimizados: ${result.improvements.paragraphsOptimized}
+
+📊 Estadísticas:
+• Palabras de transición: ${result.beforeStats.transitionWords} → ${result.afterStats.transitionWords}
+• Oraciones largas: ${result.beforeStats.longSentences} → ${result.afterStats.longSentences}
+• Keywords en negrita: ${result.beforeStats.boldKeywords} → ${result.afterStats.boldKeywords}
+
+✅ Problemas solucionados: ${result.issuesFixed.length}
+⚠️ Problemas restantes: ${result.remainingIssues.length}`
+      
+      alert(summary)
+      
+    } catch (error: any) {
+      console.error('❌ Error en optimización completa:', error)
+      alert(`Error al optimizar: ${error.message}`)
+    } finally {
+      setOptimizingReadability(false)
     }
   }
 
@@ -1009,14 +1264,13 @@ export default function ArticleEditorPage() {
           saving={saving}
           deleting={deleting}
           humanizing={humanizing}
+          optimizingReadability={optimizingReadability}
           currentLanguage={currentLanguage}
           loadingTranslation={loadingTranslation}
           selectedModelId={selectedHumanizeModelId}
           availableModels={availableModels}
-          isLoadingModels={isLoadingModels}
           onModelChange={setSelectedHumanizeModelId}
           onSave={handleSave}
-          onSubmit={handleSubmit}
           onDelete={handleDelete}
           showLanguageMenu={showLanguageMenu}
           setShowLanguageMenu={setShowLanguageMenu}
@@ -1026,23 +1280,24 @@ export default function ArticleEditorPage() {
           onGooglePreview={() => setShowGooglePreview(true)}
           onDeleteTranslation={handleDeleteTranslation}
           onHumanize={handleHumanize}
+          onOptimizeReadability={handleOptimizeReadability}
         />
 
         <div className="flex h-[calc(100vh-60px)]">
         <div className="flex-1 overflow-y-auto">
           <div className="p-0">
             <div className="max-w-5xl mx-auto">
-              {(humanizingWithoutStream || translatingWithoutStream) ? (
-                // Skeleton cuando está humanizando o traduciendo sin streaming
+              {((humanizing && !isStreamingHumanize) || (translating && !isStreamingTranslation)) ? (
+                // Skeleton cuando está humanizando o traduciendo SIN streaming
                 <div className="p-8 space-y-6">
                   <div className="flex items-center justify-center mb-8">
                     <div className="text-center">
                       <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" style={{ color: '#009689' }} />
                       <p className="text-sm font-medium text-gray-600">
-                        {humanizingWithoutStream ? 'Humanizando contenido...' : 'Traduciendo contenido...'}
+                        {humanizing ? 'Humanizando contenido...' : 'Traduciendo contenido...'}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {humanizingWithoutStream ? currentHumanizeStep : currentTranslationStep}
+                        {humanizing ? currentHumanizeStep : currentTranslationStep}
                       </p>
                     </div>
                   </div>
@@ -1078,6 +1333,7 @@ export default function ArticleEditorPage() {
                   initialContent={editedContent}
                   onChange={setEditedContent}
                   showImagePicker={true}
+                  className="min-h-[600px]"
                 />
               )}
             </div>
@@ -1125,10 +1381,9 @@ export default function ArticleEditorPage() {
             {activeTab === 'analytics' && (
               <AnalyticsTab
                 article={displayArticle}
-                editedContent={htmlToMarkdown(editedContent)}
+                editedContent={editedContent}
                 onContentUpdate={(newContent) => {
-                  const htmlContent = markdownToHtml(newContent)
-                  setEditedContent(htmlContent)
+                  setEditedContent(newContent)
                   setEditorKey(prev => prev + 1)
                 }}
               />
@@ -1137,7 +1392,7 @@ export default function ArticleEditorPage() {
             {activeTab === 'seo' && (
               <SEOTab
                 article={displayArticle}
-                editedContent={htmlToMarkdown(editedContent)}
+                editedContent={editedContent}
               />
             )}
 

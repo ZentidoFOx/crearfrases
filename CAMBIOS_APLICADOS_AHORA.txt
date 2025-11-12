@@ -1,0 +1,54 @@
+✅ CAMBIOS APLICADOS - RESUMEN RÁPIDO
+===========================================
+
+📅 Fecha: 2025-11-11
+⏰ Hora: 09:06
+
+ARCHIVOS MODIFICADOS:
+--------------------
+1. components/contenido/planner/parts/step3/utils.ts
+   - Reescrita función markdownToHtml() con 7 pasos
+   - Agregados logs de debug en cada paso
+   - Conversión correcta de: encabezados, negritas, cursivas, listas, imágenes, enlaces
+
+2. components/contenido/planner/parts/step3/index.tsx
+   - Cambiada importación dinámica a estática
+   - Agregados logs detallados de conversión
+   - Verificación del contenido antes y después de convertir
+
+CAMBIOS CLAVE:
+--------------
+ANTES:
+  const { markdownToHtml } = await import('./utils')  // Importación dinámica
+  
+AHORA:
+  import { markdownToHtml } from './utils'  // Importación estática
+  
+LOGS AGREGADOS:
+  🔄 [STEP3] Markdown obtenido
+  ✅ [MD→HTML] Paso 1-7
+  ✅ [STEP3] Conversión completa
+
+¡¡¡ IMPORTANTE !!!
+==================
+⚠️ DEBES REINICIAR EL SERVIDOR NEXT.JS PARA QUE LOS CAMBIOS FUNCIONEN
+
+Pasos:
+1. Ctrl+C en la terminal donde corre el servidor
+2. npm run dev
+3. Esperar a que inicie (10-15 segundos)
+4. Abrir navegador en modo incógnito
+5. Ir a /contenido/planner
+6. Generar contenido
+7. Abrir consola (F12) y verificar logs
+
+VERIFICACIÓN:
+-------------
+✅ Si ves logs [MD→HTML] en consola → Funcionando
+✅ Si en BD ves <h2><p><strong> → HTML correcto
+❌ Si en BD ves ## ** → Markdown (ERROR, reiniciar servidor)
+
+SIGUIENTE PASO:
+---------------
+Lee el archivo: INSTRUCCIONES_PRUEBA_HTML.md
+Contiene instrucciones paso a paso detalladas.

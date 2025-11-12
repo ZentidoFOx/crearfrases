@@ -10,10 +10,11 @@ export interface OutlineSection {
   type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image'
   title: string
   paragraphs: number
-  characters: number
+  words: number
   collapsed?: boolean
   imageUrl?: string
   items?: number // Para listas
+  contentType?: 'paragraphs' | 'list' | 'numbered-list' // Tipo de contenido para encabezados
 }
 
 interface OutlineEditorAdvancedProps {
@@ -121,57 +122,76 @@ export function OutlineEditorAdvanced({
     onOutlineChange(newOutline)
   }
 
-  const handleCharactersChange = (id: string, chars: number) => {
+  const handleWordsChange = (id: string, words: number) => {
     const newOutline = outline.map(section =>
-      section.id === id ? { ...section, characters: Math.max(100, chars) } : section
+      section.id === id ? { ...section, words: Math.max(20, words) } : section
     )
     onOutlineChange(newOutline)
   }
 
+  const handleContentTypeChange = (id: string, contentType: 'paragraphs' | 'list' | 'numbered-list') => {
+    const newOutline = outline.map(section => {
+      if (section.id === id) {
+        const updated = { ...section, contentType }
+        // Ajustar valores predeterminados según el tipo
+        if (contentType === 'list' || contentType === 'numbered-list') {
+          updated.items = updated.items || 5
+          updated.paragraphs = 0
+        } else {
+          updated.paragraphs = updated.paragraphs || 2
+          updated.items = undefined
+        }
+        return updated
+      }
+      return section
+    })
+    onOutlineChange(newOutline)
+  }
+
   const addSection = (type: OutlineSection['type']) => {
-    let defaultChars = 200
+    let defaultWords = 40
     let defaultParagraphs = 1
     let defaultItems = 5
     let defaultTitle = ''
 
     switch (type) {
       case 'h2':
-        defaultChars = 450
+        defaultWords = 90
         defaultParagraphs = 3
-        defaultTitle = `Nuevo H2: ${keyword}`
+        defaultTitle = keyword // Solo la keyword, sin prefijo
         break
       case 'h3':
-        defaultChars = 300
+        defaultWords = 60
         defaultParagraphs = 2
-        defaultTitle = `Nuevo H3: ${keyword}`
+        defaultTitle = keyword // Solo la keyword, sin prefijo
         break
       case 'h4':
-        defaultChars = 200
+        defaultWords = 40
         defaultParagraphs = 2
-        defaultTitle = `Nuevo H4: ${keyword}`
+        defaultTitle = keyword // Solo la keyword, sin prefijo
         break
       case 'paragraph':
-        defaultChars = 250
+        defaultWords = 50
         defaultParagraphs = 1
         defaultTitle = 'Nuevo párrafo'
         break
       case 'list':
-        defaultChars = 200
+        defaultWords = 40
         defaultParagraphs = 0
         defaultTitle = 'Nueva lista (viñetas)'
         break
       case 'numbered-list':
-        defaultChars = 200
+        defaultWords = 40
         defaultParagraphs = 0
         defaultTitle = 'Nueva lista (numerada)'
         break
       case 'quote':
-        defaultChars = 150
+        defaultWords = 30
         defaultParagraphs = 1
         defaultTitle = 'Nueva cita destacada'
         break
       case 'image':
-        defaultChars = 0
+        defaultWords = 0
         defaultParagraphs = 0
         defaultTitle = 'Nueva imagen'
         break
@@ -182,9 +202,10 @@ export function OutlineEditorAdvanced({
       type,
       title: defaultTitle,
       paragraphs: defaultParagraphs,
-      characters: defaultChars,
+      words: defaultWords,
       collapsed: false,
-      items: (type === 'list' || type === 'numbered-list') ? defaultItems : undefined
+      items: (type === 'list' || type === 'numbered-list') ? defaultItems : undefined,
+      contentType: (type === 'h2' || type === 'h3' || type === 'h4') ? 'paragraphs' : undefined
     }
     onOutlineChange([...outline, newSection])
   }
@@ -205,9 +226,12 @@ export function OutlineEditorAdvanced({
 
   const totalWords = () => {
     const introWords = introParagraphs * 75
-    const sectionWords = outline.reduce((sum, s) => 
-      s.type !== 'image' ? sum + (s.characters / 5) : sum, 0
-    )
+    const sectionWords = outline.reduce((sum, s) => {
+      if (s.type === 'image') return sum
+      // Asegurar que words sea un número válido
+      const words = s.words || 0
+      return sum + (isNaN(words) ? 0 : words)
+    }, 0)
     return Math.round(introWords + sectionWords)
   }
 
@@ -243,7 +267,7 @@ export function OutlineEditorAdvanced({
               Vista Previa del Esqueleto
             </h2>
             <p className="text-sm text-gray-600">
-              Configura cada sección con párrafos y caracteres
+              Configura cada sección con párrafos y palabras
             </p>
           </div>
         </div>
@@ -413,9 +437,28 @@ export function OutlineEditorAdvanced({
 
                 {/* Details (when not collapsed) */}
                 {!section.collapsed && section.type !== 'image' && (
-                  <div className="px-4 pb-3 flex items-center gap-4 text-xs flex-wrap">
+                  <div className="px-4 pb-3 space-y-3">
+                    {/* Selector de tipo de contenido para encabezados */}
+                    {(section.type === 'h2' || section.type === 'h3' || section.type === 'h4') && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-gray-600 font-semibold">Contenido:</span>
+                        <select
+                          value={section.contentType || 'paragraphs'}
+                          onChange={(e) => handleContentTypeChange(section.id, e.target.value as 'paragraphs' | 'list' | 'numbered-list')}
+                          className="h-8 px-3 border border-gray-300 rounded text-xs bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="paragraphs">📝 Párrafos</option>
+                          <option value="list">• Lista (viñetas)</option>
+                          <option value="numbered-list">1. Lista (numerada)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Controles según el tipo de contenido */}
+                    <div className="flex items-center gap-4 text-xs flex-wrap">
                     {/* Listas: mostrar número de items */}
-                    {(section.type === 'list' || section.type === 'numbered-list') ? (
+                    {((section.type === 'list' || section.type === 'numbered-list') || 
+                      (section.contentType === 'list' || section.contentType === 'numbered-list')) ? (
                       <>
                         <div className="flex items-center gap-2">
                           <span className="text-gray-500">📝</span>
@@ -438,14 +481,14 @@ export function OutlineEditorAdvanced({
                           <span className="text-gray-500">T ~</span>
                           <Input
                             type="number"
-                            min="100"
-                            max="2000"
-                            step="100"
-                            value={section.characters}
-                            onChange={(e) => handleCharactersChange(section.id, parseInt(e.target.value) || 100)}
+                            min="20"
+                            max="400"
+                            step="10"
+                            value={section.words}
+                            onChange={(e) => handleWordsChange(section.id, parseInt(e.target.value) || 20)}
                             className="w-20 h-7 text-center"
                           />
-                          <span className="text-gray-600">caracteres/item</span>
+                          <span className="text-gray-600">palabras/item</span>
                         </div>
                       </>
                     ) : (
@@ -469,17 +512,18 @@ export function OutlineEditorAdvanced({
                           <span className="text-gray-500">T ~</span>
                           <Input
                             type="number"
-                            min="100"
-                            max="5000"
-                            step="100"
-                            value={section.characters}
-                            onChange={(e) => handleCharactersChange(section.id, parseInt(e.target.value) || 100)}
+                            min="20"
+                            max="1000"
+                            step="10"
+                            value={section.words}
+                            onChange={(e) => handleWordsChange(section.id, parseInt(e.target.value) || 20)}
                             className="w-20 h-7 text-center"
                           />
-                          <span className="text-gray-600">caracteres</span>
+                          <span className="text-gray-600">palabras</span>
                         </div>
                       </>
                     )}
+                    </div>
                   </div>
                 )}
 

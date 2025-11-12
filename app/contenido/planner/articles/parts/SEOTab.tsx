@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,19 +30,88 @@ export function SEOTab({
   article,
   editedContent
 }: SEOTabProps) {
+  // 🌍 Detectar si es una traducción CORRECTAMENTE
+  const seoData = article?.seo_data || {}
+  
+  // 🔍 NUEVA LÓGICA: Detectar traducción por idioma y estructura
+  const isTranslation = (
+    article?.language && article.language !== 'es' // No es español (idioma original)
+  ) || (
+    article?.article_id !== undefined // Tiene article_id (viene de article_translations)
+  )
+  
+  const isSEODataAvailable = Object.keys(seoData).length > 0
+  
+  console.log('🔍 [SEO-DETECTION] Detección de traducción:', {
+    language: article?.language,
+    hasArticleId: !!article?.article_id,
+    isTranslation,
+    hasSeoData: isSEODataAvailable
+  })
+  
+  // 🎯 PRIORIZAR seo_data para traducciones (contiene datos traducidos correctos)
+  // Si seo_data.focus_keyword existe, usarlo (es el keyword traducido)
+  // Si no, usar article.keyword (es el keyword del artículo original)
+  const displayKeyword = (isSEODataAvailable && seoData.focus_keyword) 
+    ? seoData.focus_keyword 
+    : article?.keyword
+    
+  const displayTitle = (isSEODataAvailable && seoData.seo_title) 
+    ? seoData.seo_title 
+    : article?.title
+    
+  const displayH1 = article?.h1_title || article?.title || ''
+  
+  // 🔥 PRIORIDAD ABSOLUTA: seo_data.meta_description para traducciones
+  const displayMeta = (seoData && seoData.meta_description) 
+    ? seoData.meta_description 
+    : (article?.meta_description || '')
+    
+  const displayKeywordsArray = article?.keywords_array || []
+  const displayRelatedKeywords = (isSEODataAvailable && seoData.related_keywords) 
+    ? seoData.related_keywords 
+    : []
+    
+  const displaySlug = (isSEODataAvailable && seoData.slug) 
+    ? seoData.slug 
+    : article?.slug
+  
   const [isEditingKeyword, setIsEditingKeyword] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [isEditingH1, setIsEditingH1] = useState(false)
   const [isEditingMeta, setIsEditingMeta] = useState(false)
   const [isEditingKeywords, setIsEditingKeywords] = useState(false)
   
-  const [editedKeyword, setEditedKeyword] = useState(article?.keyword || '')
-  const [editedTitle, setEditedTitle] = useState(article?.title || '')
-  const [editedH1, setEditedH1] = useState(article?.h1_title || article?.title || '')
-  const [editedMeta, setEditedMeta] = useState(article?.meta_description || '')
-  const [editedKeywords, setEditedKeywords] = useState((article?.keywords_array || []).join(', '))
+  const [editedKeyword, setEditedKeyword] = useState(displayKeyword || '')
+  const [editedTitle, setEditedTitle] = useState(displayTitle || '')
+  const [editedH1, setEditedH1] = useState(displayH1 || '')
+  const [editedMeta, setEditedMeta] = useState(displayMeta || '')
+  const [editedKeywords, setEditedKeywords] = useState(displayKeywordsArray.join(', '))
   
   const [saving, setSaving] = useState(false)
+  
+  // 🔄 SINCRONIZAR ESTADO LOCAL CON DATOS DEL ARTÍCULO
+  useEffect(() => {
+    console.log('🔄 [SEOTab] Sincronizando estado local con datos del artículo')
+    setEditedKeyword(displayKeyword || '')
+    setEditedTitle(displayTitle || '')
+    setEditedH1(displayH1 || '')
+    setEditedMeta(displayMeta || '')
+    setEditedKeywords(displayKeywordsArray.join(', '))
+  }, [displayKeyword, displayTitle, displayH1, displayMeta, displayKeywordsArray])
+  
+  console.log('🔍 [SEOTab] Debug datos:', {
+    articleLanguage: article?.language,
+    hasSEOData: isSEODataAvailable,
+    seoData: seoData,
+    displayKeyword,
+    displayTitle,
+    displayH1,
+    displayMeta: displayMeta?.substring(0, 50),
+    displaySlug,
+    relatedKeywords: displayRelatedKeywords,
+    keywordsArray: displayKeywordsArray
+  })
 
   const handleSave = async (field: string, value: any) => {
     if (!article?.id) return
@@ -52,26 +121,104 @@ export function SEOTab({
       const updateData: any = {}
       
       if (field === 'keyword') {
-        updateData.keyword = value
+        if (isTranslation) {
+          // 🌍 ES UNA TRADUCCIÓN: Actualizar seo_data.focus_keyword
+          console.log('🌍 [SEO-EDIT] Actualizando keyword de traducción:', {
+            idioma: article?.language,
+            esTraduccion: isTranslation,
+            nuevo_keyword_traducido: value
+          })
+          
+          updateData.seo_data = {
+            ...(seoData as any),
+            focus_keyword: value
+          }
+        } else {
+          // 🇪🇸 ES EL ARTÍCULO ORIGINAL: Actualizar keyword principal
+          console.log('🇪🇸 [SEO-EDIT] Actualizando keyword original:', {
+            keyword_anterior: article?.keyword,
+            keyword_nuevo: value
+          })
+          
+          updateData.keyword = value
+        }
+        
         setIsEditingKeyword(false)
       } else if (field === 'title') {
-        updateData.title = value
+        if (isTranslation) {
+          // 🌍 TRADUCCIÓN: Actualizar seo_data.seo_title
+          updateData.seo_data = {
+            ...(seoData as any),
+            seo_title: value
+          }
+        } else {
+          // 🇪🇸 ORIGINAL: Actualizar title principal
+          updateData.title = value
+        }
         setIsEditingTitle(false)
       } else if (field === 'h1_title') {
+        // H1 Title siempre se guarda en el campo principal
         updateData.h1_title = value
         setIsEditingH1(false)
       } else if (field === 'meta_description') {
-        updateData.meta_description = value
+        if (isTranslation) {
+          // 🌍 TRADUCCIÓN: Actualizar seo_data.meta_description
+          updateData.seo_data = {
+            ...(seoData as any),
+            meta_description: value
+          }
+        } else {
+          // 🇪🇸 ORIGINAL: Actualizar meta_description principal
+          updateData.meta_description = value
+        }
         setIsEditingMeta(false)
       } else if (field === 'keywords_array') {
         updateData.keywords_array = value.split(',').map((k: string) => k.trim()).filter((k: string) => k)
         setIsEditingKeywords(false)
       }
       
-      await plannerArticlesService.update(article.id, updateData)
+      // 🔍 USAR LA API CORRECTA SEGÚN EL TIPO
+      if (isTranslation) {
+        // 🌍 TRADUCCIÓN: Usar updateTranslation()
+        console.log('🌍 [API-CALL] Llamando updateTranslation() para traducción')
+        console.log('  - Article ID:', article.article_id || article.id)
+        console.log('  - Language:', article.language)
+        console.log('  - Update Data:', updateData)
+        
+        await plannerArticlesService.updateTranslation(
+          article.article_id || article.id, // ID del artículo original
+          article.language, // Idioma de la traducción
+          updateData
+        )
+      } else {
+        // 🇪🇸 ORIGINAL: Usar update()
+        console.log('🇪🇸 [API-CALL] Llamando update() para artículo original')
+        console.log('  - Article ID:', article.id)
+        console.log('  - Update Data:', updateData)
+        
+        await plannerArticlesService.update(article.id, updateData)
+      }
       
-      // Actualizar el artículo local
-      Object.assign(article, updateData)
+      // Mostrar mensaje de confirmación específico
+      const fieldNames = {
+        keyword: 'Focus Keyword',
+        title: 'SEO Title',
+        h1_title: 'H1 Title',
+        meta_description: 'Meta Description',
+        keywords_array: 'Keywords Array'
+      }
+      
+      const fieldName = fieldNames[field as keyof typeof fieldNames] || field
+      
+      if (isTranslation) {
+        console.log(`✅ [SEO-EDIT] ${fieldName} de traducción ${article?.language?.toUpperCase()} guardado: "${value}"`)
+      } else {
+        console.log(`✅ [SEO-EDIT] ${fieldName} original actualizado: "${value}"`)
+      }
+      
+      // 🔄 FORZAR RECARGA DE LA PÁGINA PARA OBTENER DATOS ACTUALIZADOS DE LA API
+      console.log('🔄 [SEO-EDIT] Recargando página para mostrar datos actualizados de la API')
+      window.location.reload()
     } catch (error) {
       console.error('Error saving:', error)
       alert('Error al guardar los cambios')
@@ -82,19 +229,19 @@ export function SEOTab({
 
   const handleCancel = (field: string) => {
     if (field === 'keyword') {
-      setEditedKeyword(article?.keyword || '')
+      setEditedKeyword(displayKeyword || '')
       setIsEditingKeyword(false)
     } else if (field === 'title') {
-      setEditedTitle(article?.title || '')
+      setEditedTitle(displayTitle || '')
       setIsEditingTitle(false)
     } else if (field === 'h1_title') {
-      setEditedH1(article?.h1_title || article?.title || '')
+      setEditedH1(displayH1 || '')
       setIsEditingH1(false)
     } else if (field === 'meta_description') {
-      setEditedMeta(article?.meta_description || '')
+      setEditedMeta(displayMeta || '')
       setIsEditingMeta(false)
     } else if (field === 'keywords_array') {
-      setEditedKeywords((article?.keywords_array || []).join(', '))
+      setEditedKeywords(displayKeywordsArray.join(', '))
       setIsEditingKeywords(false)
     }
   }
@@ -120,10 +267,66 @@ export function SEOTab({
         <div className="space-y-4">
           {/* 1. Focus Keyword */}
           <div>
-            <div className="text-xs text-gray-500 mb-2 font-semibold">Focus Keyword</div>
-            <Badge className="text-white px-3 py-1.5 shadow-sm text-sm" style={{ backgroundColor: '#9810fa' }}>
-              {article.keyword}
-            </Badge>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 font-semibold">Focus Keyword</span>
+                {isSEODataAvailable && (
+                  <Badge 
+                    variant="outline" 
+                    className="text-xs px-2 py-0.5 text-blue-600 border-blue-200 bg-blue-50"
+                  >
+                    {article?.language?.toUpperCase() || 'TRADUCIDO'}
+                  </Badge>
+                )}
+              </div>
+              {!isEditingKeyword && (
+                <button
+                  onClick={() => setIsEditingKeyword(true)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {isEditingKeyword ? (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={editedKeyword}
+                  onChange={(e) => setEditedKeyword(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder={isSEODataAvailable 
+                    ? `Keyword en ${article?.language?.toUpperCase() || 'este idioma'}` 
+                    : "Palabra clave principal (original)"
+                  }
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => handleSave('keyword', editedKeyword)}
+                    disabled={saving}
+                    className="h-7 text-xs text-white"
+                    style={{ backgroundColor: '#009689' }}
+                  >
+                    <Save className="h-3 w-3 mr-1" />
+                    Guardar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCancel('keyword')}
+                    className="h-7 text-xs"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Badge className="text-white px-3 py-1.5 shadow-sm text-sm" style={{ backgroundColor: '#9810fa' }}>
+                {displayKeyword}
+              </Badge>
+            )}
           </div>
 
           {/* 2. SEO Title */}
@@ -172,7 +375,7 @@ export function SEOTab({
               </div>
             ) : (
               <div className="text-sm text-gray-900 font-medium bg-gray-50 p-3 rounded-lg border border-gray-200">
-                {article.title}
+                {displayTitle}
               </div>
             )}
           </div>
@@ -223,7 +426,7 @@ export function SEOTab({
               </div>
             ) : (
               <div className="text-sm text-gray-900 font-medium bg-gray-50 p-3 rounded-lg border border-gray-200">
-                {article.h1_title || article.title}
+                {displayH1}
               </div>
             )}
           </div>
@@ -237,7 +440,7 @@ export function SEOTab({
                   !editedMeta || editedMeta.length === 0 ? 'text-red-500' :
                   editedMeta.length > 160 ? 'text-orange-500' : 'text-green-500'
                 }`}>
-                  {isEditingMeta ? editedMeta.length : (article.meta_description?.length || 0)}/160
+                  {isEditingMeta ? editedMeta.length : (displayMeta?.length || 0)}/160
                 </span>
                 {!isEditingMeta && (
                   <button
@@ -282,7 +485,7 @@ export function SEOTab({
               </div>
             ) : (
               <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-200">
-                {article.meta_description || 'Sin meta descripción'}
+                {displayMeta || 'Sin meta descripción'}
               </p>
             )}
           </div>
@@ -291,19 +494,24 @@ export function SEOTab({
           <div>
             <div className="text-xs text-gray-500 mb-2 font-semibold">URL Slug</div>
             <div className="text-sm font-mono bg-purple-50 p-3 rounded-lg border border-purple-200 break-all" style={{ color: '#9810fa' }}>
-              /{article.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}
+              /{displaySlug || article.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}
             </div>
           </div>
         </div>
       </div>
 
       {/* Related Keywords */}
-      {article.keywords_array && article.keywords_array.length > 0 && (
+      {((displayKeywordsArray && displayKeywordsArray.length > 0) || (displayRelatedKeywords && displayRelatedKeywords.length > 0)) && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Key className="h-5 w-5" style={{ color: '#9810fa' }} />
               <h3 className="text-sm font-bold text-gray-800">Related Keywords</h3>
+              {displayRelatedKeywords && displayRelatedKeywords.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {displayRelatedKeywords.length} de seo_data
+                </Badge>
+              )}
             </div>
             {!isEditingKeywords && (
               <button
@@ -347,12 +555,32 @@ export function SEOTab({
               </div>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {article.keywords_array.map((kw: string, idx: number) => (
-                <Badge key={idx} variant="outline" className="text-xs px-3 py-1" style={{ borderColor: 'rgba(152, 16, 250, 0.3)', color: '#9810fa', backgroundColor: 'rgba(152, 16, 250, 0.05)' }}>
-                  {kw}
-                </Badge>
-              ))}
+            <div className="space-y-3">
+              {displayKeywordsArray.length > 0 && (
+                <div>
+                  <div className="text-xs text-gray-500 mb-2 font-semibold">Keywords Array:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {displayKeywordsArray.map((kw: string, idx: number) => (
+                      <Badge key={idx} variant="outline" className="text-xs px-3 py-1" style={{ borderColor: 'rgba(152, 16, 250, 0.3)', color: '#9810fa', backgroundColor: 'rgba(152, 16, 250, 0.05)' }}>
+                        {kw}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {displayRelatedKeywords.length > 0 && (
+                <div>
+                  <div className="text-xs text-gray-500 mb-2 font-semibold">Related Keywords (Traducidos):</div>
+                  <div className="flex flex-wrap gap-2">
+                    {displayRelatedKeywords.map((kw: string, idx: number) => (
+                      <Badge key={`rel-${idx}`} variant="outline" className="text-xs px-3 py-1" style={{ borderColor: 'rgba(0, 150, 137, 0.3)', color: '#009689', backgroundColor: 'rgba(0, 150, 137, 0.05)' }}>
+                        {kw}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

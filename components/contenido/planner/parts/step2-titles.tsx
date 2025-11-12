@@ -29,12 +29,278 @@ interface TitleData {
   }
 }
 
+// Helper function to normalize text for comparison
+const normalizeText = (text: string): string => {
+  return text.toLowerCase().trim()
+    .replace(/[áàäâ]/g, 'a')
+    .replace(/[éèëê]/g, 'e')
+    .replace(/[íìïî]/g, 'i')
+    .replace(/[óòöô]/g, 'o')
+    .replace(/[úùüû]/g, 'u')
+    .replace(/[ñ]/g, 'n')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Helper function to check if title sounds too artificial/robotic
+const isArtificialTitle = (title: string): boolean => {
+  const lowerTitle = title.toLowerCase()
+  
+  // PALABRAS POMPOSAS
+  const pompousWords = [
+    'crucial', 'intrincado', 'pivotal', 'meticuloso', 'imprescindible',
+    'revolucionar', 'fundamental', 'esencial', 'clave', 'primordial',
+    'sustancial', 'considerable', 'notable', 'significativo'
+  ]
+  
+  // VERBOS ROBÓTICOS
+  const roboticVerbs = [
+    'aprovechar', 'embarcarse', 'profundizar', 'optimizar', 'potenciar',
+    'utilizar', 'facilitar', 'maximizar', 'implementar', 'ejecutar',
+    'analice', 'explore', 'descubre', 'navegue', 'examine'
+  ]
+  
+  // DESCRIPTORES EXAGERADOS
+  const exaggeratedDescriptors = [
+    'vibrante', 'vital', 'dinámico', 'versátil', 'exhaustivo',
+    'completo', 'integral', 'intrigante', 'fascinante', 'cautivador',
+    'impresionante', 'asombroso', 'increíble', 'espectacular'
+  ]
+  
+  // CONCEPTOS ABSTRACTOS
+  const abstractConcepts = [
+    'tapiz', 'reino', 'panorama', 'ecosistema', 'esfera',
+    'interacción', 'resonar', 'elevar', 'transformar',
+    'inmersión', 'conexión', 'sinergia', 'dimensión'
+  ]
+  
+  // FRASES TÍPICAS DE IA
+  const aiPhrases = [
+    'descubre las maravillas', 'explora el mundo de', 'sumérgete en',
+    '¿alguna vez has soñado?', '¿te imaginas poder?',
+    'es importante tener en cuenta', 'es importante notar',
+    'vale la pena mencionar', 'cabe destacar que',
+    'en el mundo de', 'en el ámbito de', 'en el contexto de',
+    'juegan un papel importante', 'desempeñan un rol clave',
+    'tiene como objetivo', 'busca proporcionar',
+    'navegar por el paisaje', 'recorrer el camino'
+  ]
+  
+  // CONECTORES Y MULETILLAS DE IA
+  const aiConnectors = [
+    'en resumen', 'en conclusión', 'para resumir',
+    'recuerda que', 'no olvides que', 'ten en cuenta que',
+    'echale un vistazo', 'dale una oportunidad',
+    'profundizar en', 'ahondar en', 'adentrarse en',
+    'aprovechar al máximo', 'sacar el máximo provecho'
+  ]
+  
+  // ADJETIVOS COMUNES DE IA
+  const aiAdjectives = [
+    'mejorar', 'ofrendas', 'escaparate', 'subraya', 'exhibición',
+    'remarcó', 'alinea', 'garantizar', 'impulsar', 'fomentar'
+  ]
+  
+  // FRASES CLÁSICAS ARTIFICIALES (originales)
+  const classicArtificial = [
+    'guía definitiva', 'guía completa', 'guía ultimate',
+    'secretos revelados', 'secretos ocultos', 'secretos increíbles',
+    'imperdible', 'exclusivo', 'top ', 'mejores ', ' mejores',
+    'paso a paso', 'tutorial completo'
+  ]
+  
+  // Combinar todas las listas
+  const allProhibitedWords = [
+    ...pompousWords,
+    ...roboticVerbs,
+    ...exaggeratedDescriptors,
+    ...abstractConcepts,
+    ...aiPhrases,
+    ...aiConnectors,
+    ...aiAdjectives,
+    ...classicArtificial
+  ]
+  
+  // Verificar si el título contiene alguna palabra/frase prohibida
+  const hasProhibitedContent = allProhibitedWords.some(phrase => {
+    const isFound = lowerTitle.includes(phrase)
+    if (isFound) {
+      console.log(`❌ [AI-FILTER] Palabra/frase prohibida encontrada: "${phrase}" en "${title}"`)
+    }
+    return isFound
+  })
+  
+  return hasProhibitedContent
+}
+
+// Helper function to check if title is duplicate
+const isDuplicateTitle = (newTitle: string, existingTitles: string[]): boolean => {
+  const normalizedNew = normalizeText(newTitle)
+  return existingTitles.some(existing => {
+    const normalizedExisting = normalizeText(existing)
+    return normalizedNew === normalizedExisting
+  })
+}
+
+// Helper function to check if title contains the complete keyword
+const containsCompleteKeyword = (title: string, keyword: string): boolean => {
+  const normalizedTitle = normalizeText(title)
+  const normalizedKeyword = normalizeText(keyword)
+  
+  console.log('🔍 [COMPLETE KEYWORD CHECK]')
+  console.log('  - Título:', title)
+  console.log('  - Keyword completa:', keyword)
+  console.log('  - Título normalizado:', normalizedTitle)
+  console.log('  - Keyword normalizada:', normalizedKeyword)
+  console.log('  - ¿Contiene keyword completa?:', normalizedTitle.includes(normalizedKeyword))
+  
+  return normalizedTitle.includes(normalizedKeyword)
+}
+
+// Helper function to validate title and description lengths
+const hasValidLengths = (titleData: { title: string; description: string }): boolean => {
+  const titleLength = titleData.title.length
+  const descriptionLength = titleData.description.length
+  
+  // Rangos óptimos SEO
+  const titleOptimal = titleLength >= 50 && titleLength <= 60
+  const titleAcceptable = titleLength >= 45 && titleLength <= 65 // Rango más amplio pero aceptable
+  const descriptionOptimal = descriptionLength >= 150 && descriptionLength <= 160
+  const descriptionAcceptable = descriptionLength >= 140 && descriptionLength <= 170 // Rango más amplio
+  
+  console.log('📏 [LENGTH CHECK]')
+  console.log('  - Título:', titleData.title)
+  console.log('  - Longitud título:', titleLength, 'chars')
+  console.log('  - Título óptimo (50-60):', titleOptimal)
+  console.log('  - Título aceptable (45-65):', titleAcceptable)
+  console.log('  - Longitud descripción:', descriptionLength, 'chars')
+  console.log('  - Descripción óptima (150-160):', descriptionOptimal)
+  console.log('  - Descripción aceptable (140-170):', descriptionAcceptable)
+  
+  // Rechazar solo si está muy fuera del rango aceptable
+  const titleValid = titleLength >= 40 && titleLength <= 70
+  const descriptionValid = descriptionLength >= 120 && descriptionLength <= 180
+  
+  if (!titleValid) {
+    console.log(`❌ [LENGTH] Título rechazado: ${titleLength} chars (debe ser 40-70)`)
+    return false
+  }
+  
+  if (!descriptionValid) {
+    console.log(`❌ [LENGTH] Descripción rechazada: ${descriptionLength} chars (debe ser 120-180)`)
+    return false
+  }
+  
+  // Advertir si no es óptimo pero aceptar
+  if (!titleOptimal) {
+    console.log(`⚠️ [LENGTH] Título no óptimo: ${titleLength} chars (óptimo: 50-60)`)
+  }
+  
+  if (!descriptionOptimal) {
+    console.log(`⚠️ [LENGTH] Descripción no óptima: ${descriptionLength} chars (óptimo: 150-160)`)
+  }
+  
+  return true
+}
+
+// Helper function to check if keyword exists in text - SIMPLIFICADO
+const containsKeyword = (text: string, keyword: string): boolean => {
+  if (!text || !keyword) return false
+  
+  const normalizedText = normalizeText(text)
+  const normalizedKeyword = normalizeText(keyword)
+  
+  console.log('🔍 [KEYWORD CHECK]')
+  console.log('  - Texto original:', text)
+  console.log('  - Keyword original:', keyword)
+  console.log('  - Texto normalizado:', normalizedText)
+  console.log('  - Keyword normalizada:', normalizedKeyword)
+  console.log('  - ¿Contiene?:', normalizedText.includes(normalizedKeyword))
+  
+  // Verificación simple: si la keyword normalizada está en el texto normalizado
+  const result = normalizedText.includes(normalizedKeyword)
+  
+  // Test adicional para debugging
+  if (!result && keyword.toLowerCase().includes('pescar')) {
+    console.log('⚠️ [DEBUG] Keyword "pescar" no encontrada:')
+    console.log('  - ¿Texto contiene "pescar"?', normalizedText.includes('pescar'))
+    console.log('  - ¿Texto contiene "amazonas"?', normalizedText.includes('amazonas'))
+    console.log('  - Palabras en texto:', normalizedText.split(' '))
+    console.log('  - Palabras en keyword:', normalizedKeyword.split(' '))
+  }
+  
+  return result
+}
+
 interface Step2TitlesProps {
   keyword: string
   modelId: number
   additionalKeywords?: string
-  onSelectTitle: (title: string, titleData?: TitleData) => void
+  onSelectTitle: (title: string, titleData?: TitleData, step2StateData?: any) => void
   onBack: () => void
+  initialData?: {
+    titles?: TitleData[]
+    selectedTitle?: TitleData | null
+  }
+}
+
+// Componente de Indicadores SEO
+const SEOFactors = ({ titleData, keyword }: { titleData: TitleData; keyword: string }) => {
+  const factors = [
+    {
+      icon: Target,
+      label: 'Keyword',
+      status: containsKeyword(titleData.title, keyword),
+      detail: (() => {
+        if (!containsKeyword(titleData.title, keyword)) return 'Ausente'
+        const normalizedTitle = normalizeText(titleData.title)
+        const normalizedKeyword = normalizeText(keyword)
+        return normalizedTitle.startsWith(normalizedKeyword) ? 'Al inicio ✨' : 'Presente'
+      })()
+    },
+    {
+      icon: BarChart3,
+      label: 'Longitud',
+      status: titleData.title.length >= 50 && titleData.title.length <= 60,
+      detail: `${titleData.title.length} chars`
+    },
+    {
+      icon: Sparkles,
+      label: 'Poder',
+      status: ['guía', 'completa', 'mejor', 'mejores', 'top', 'secretos', 'cómo', 'tutorial', 'definitiva', 'increíble', 'nuevo', 'actualizado'].some(word => normalizeText(titleData.title).includes(word)),
+      detail: 'Palabras atractivas'
+    },
+    {
+      icon: TrendingUp,
+      label: 'Números',
+      status: /\d+/.test(titleData.title) || titleData.title.includes('2024') || titleData.title.includes('2025'),
+      detail: 'Años/números'
+    }
+  ]
+  
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {factors.map((factor, idx) => {
+        const Icon = factor.icon
+        return (
+          <div
+            key={idx}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
+              factor.status
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-gray-50 text-gray-500 border border-gray-200'
+            }`}
+            title={factor.detail}
+          >
+            <Icon className="h-3 w-3" />
+            <span>{factor.label}</span>
+            {factor.status && <Check className="h-3 w-3" />}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 // Componente de Score SEO Circular
@@ -114,9 +380,9 @@ const GooglePreview = ({ title, description, keyword }: { title: string; descrip
   )
 }
 
-export function Step2Titles({ keyword, modelId, additionalKeywords: initialAdditionalKeywords = '', onSelectTitle, onBack }: Step2TitlesProps) {
-  const [titles, setTitles] = useState<TitleData[]>([])
-  const [selectedTitle, setSelectedTitle] = useState<TitleData | null>(null)
+export function Step2Titles({ keyword, modelId, additionalKeywords: initialAdditionalKeywords = '', onSelectTitle, onBack, initialData }: Step2TitlesProps) {
+  const [titles, setTitles] = useState<TitleData[]>(initialData?.titles || [])
+  const [selectedTitle, setSelectedTitle] = useState<TitleData | null>(initialData?.selectedTitle || null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState('')
   const [activeView, setActiveView] = useState<'list' | 'preview' | 'compare'>('list')
@@ -127,60 +393,182 @@ export function Step2Titles({ keyword, modelId, additionalKeywords: initialAddit
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [expandedAccordions, setExpandedAccordions] = useState<Record<number, string>>({})
 
-  // Calculate real SEO score based on the same algorithm as articles/[id]/page.tsx
+  // Calculate optimized SEO score focusing on core factors
   const calculateRealSEOScore = (titleData: TitleData): number => {
+    let score = 0
+    
+    console.log('📊 [SEO CALC] Calculando score para:', titleData.title)
+    
+    // 1. Keyword en título (30 puntos) - FACTOR MÁS IMPORTANTE
+    if (containsKeyword(titleData.title, keyword)) {
+      const normalizedTitle = normalizeText(titleData.title)
+      const normalizedKeyword = normalizeText(keyword)
+      if (normalizedTitle.startsWith(normalizedKeyword)) {
+        score += 30 // Keyword al inicio = máximo puntaje
+        console.log('  ✅ Keyword al inicio del título: +30 puntos')
+      } else {
+        score += 25 // Keyword presente = buen puntaje
+        console.log('  ✅ Keyword presente en título: +25 puntos')
+      }
+    } else {
+      console.log('  ❌ Keyword NO encontrada en título: +0 puntos')
+    }
+    
+    // 2. Keyword en descripción (25 puntos)
+    if (containsKeyword(titleData.description, keyword)) {
+      score += 25
+      console.log('  ✅ Keyword en descripción: +25 puntos')
+    } else {
+      console.log('  ❌ Keyword NO en descripción: +0 puntos')
+    }
+    
+    // 3. Longitud del título (20 puntos)
+    const titleLength = titleData.title.length
+    if (titleLength >= 50 && titleLength <= 60) {
+      score += 20
+      console.log(`  ✅ Longitud título óptima (${titleLength}): +20 puntos`)
+    } else if (titleLength >= 45 && titleLength <= 65) {
+      score += 15
+      console.log(`  ⚠️ Longitud título aceptable (${titleLength}): +15 puntos`)
+    } else if (titleLength >= 40 && titleLength <= 70) {
+      score += 10
+      console.log(`  ⚠️ Longitud título regular (${titleLength}): +10 puntos`)
+    } else {
+      console.log(`  ❌ Longitud título mala (${titleLength}): +0 puntos`)
+    }
+    
+    // 4. Longitud de la descripción (15 puntos)
+    const descLength = titleData.description.length
+    if (descLength >= 150 && descLength <= 160) {
+      score += 15
+      console.log(`  ✅ Longitud descripción óptima (${descLength}): +15 puntos`)
+    } else if (descLength >= 140 && descLength <= 170) {
+      score += 12
+      console.log(`  ⚠️ Longitud descripción aceptable (${descLength}): +12 puntos`)
+    } else if (descLength >= 120 && descLength <= 180) {
+      score += 8
+      console.log(`  ⚠️ Longitud descripción regular (${descLength}): +8 puntos`)
+    } else {
+      console.log(`  ❌ Longitud descripción mala (${descLength}): +0 puntos`)
+    }
+    
+    // 5. Bonus por naturalidad (10 puntos) - Si NO es artificial
+    if (!isArtificialTitle(titleData.title)) {
+      score += 10
+      console.log('  ✅ Título natural (no artificial): +10 puntos')
+    } else {
+      console.log('  ❌ Título artificial: +0 puntos')
+    }
+    
+    console.log(`  🏆 SCORE FINAL: ${score}/100`)
+    
+    return Math.min(score, 100) // Máximo 100 puntos
+  }
+
+  // Get detailed SEO breakdown for a title
+  const getSEOBreakdown = (titleData: TitleData) => {
     const lowerTitle = titleData.title.toLowerCase()
     const lowerDescription = titleData.description.toLowerCase()
     const lowerKeyword = keyword.toLowerCase()
     const combined = `${titleData.title} ${titleData.description}`.toLowerCase()
     
-    let score = 0
-    let maxScore = 0
+    const factors = [
+      {
+        name: 'Keyword en Título',
+        status: lowerTitle.includes(lowerKeyword),
+        bonus: lowerTitle.startsWith(lowerKeyword) ? 'Al inicio' : null,
+        weight: 25
+      },
+      {
+        name: 'Keyword en Descripción',
+        status: lowerDescription.includes(lowerKeyword),
+        bonus: (lowerDescription.match(new RegExp(lowerKeyword, 'g')) || []).length >= 2 ? 'Múltiples' : null,
+        weight: 20
+      },
+      {
+        name: 'Longitud Título',
+        status: titleData.title.length >= 50 && titleData.title.length <= 60,
+        bonus: `${titleData.title.length} chars`,
+        weight: 15
+      },
+      {
+        name: 'Longitud Descripción',
+        status: titleData.description.length >= 150 && titleData.description.length <= 160,
+        bonus: `${titleData.description.length} chars`,
+        weight: 15
+      },
+      {
+        name: 'Palabras de Poder',
+        status: ['guía', 'completa', 'mejor', 'mejores', 'top', 'secretos', 'cómo', 'tutorial', 'paso a paso', 'definitiva', 'increíble', 'imperdible', 'exclusivo', 'nuevo', 'actualizado'].some(word => lowerTitle.includes(word) || lowerDescription.includes(word)),
+        bonus: null,
+        weight: 10
+      },
+      {
+        name: 'Números/Años',
+        status: /\d+/.test(titleData.title) || titleData.title.includes('2024') || titleData.title.includes('2025'),
+        bonus: null,
+        weight: 5
+      },
+      {
+        name: 'Keywords Relacionadas',
+        status: titleData.keywords && titleData.keywords.some(kw => combined.includes(kw.toLowerCase())),
+        bonus: titleData.keywords ? `${titleData.keywords.filter(kw => combined.includes(kw.toLowerCase())).length}/${titleData.keywords.length}` : null,
+        weight: 10
+      }
+    ]
     
-    // Keyword en título (30 puntos)
-    maxScore += 30
-    if (lowerTitle.includes(lowerKeyword)) {
-      score += 30
-    }
-    
-    // Keyword en descripción (25 puntos)
-    maxScore += 25
-    if (lowerDescription.includes(lowerKeyword)) {
-      const occurrences = (lowerDescription.match(new RegExp(lowerKeyword, 'g')) || []).length
-      if (occurrences >= 2) score += 25
-      else if (occurrences >= 1) score += 15
-    }
-    
-    // Longitud del título (20 puntos - ideal 50-60 caracteres)
-    maxScore += 20
-    const titleLength = titleData.title.length
-    if (titleLength >= 50 && titleLength <= 60) score += 20
-    else if (titleLength >= 40 && titleLength <= 70) score += 15
-    else if (titleLength >= 30) score += 10
-    
-    // Longitud de la descripción (15 puntos - ideal 150-160 caracteres)
-    maxScore += 15
-    const descLength = titleData.description.length
-    if (descLength >= 150 && descLength <= 160) score += 15
-    else if (descLength >= 140 && descLength <= 165) score += 12
-    else if (descLength >= 120) score += 8
-    
-    // Keywords relacionadas presentes (10 puntos)
-    maxScore += 10
-    if (titleData.keywords && titleData.keywords.length > 0) {
-      const keywordsInContent = titleData.keywords.filter(kw => 
-        combined.includes(kw.toLowerCase())
-      ).length
-      const percentage = keywordsInContent / titleData.keywords.length
-      score += Math.round(10 * percentage)
-    }
-    
-    return maxScore > 0 ? Math.round((score / maxScore) * 100) : 0
+    return factors
   }
 
   useEffect(() => {
-    generateTitles()
-  }, [])
+    // Solo generar títulos si no hay datos previos guardados
+    if (!initialData?.titles || initialData.titles.length === 0) {
+      generateTitles()
+    } else {
+      // Si hay títulos existentes, recalcular el análisis SEO
+      console.log('🔄 [STEP2] Recalculando análisis SEO para títulos existentes...')
+      const updatedTitles = initialData.titles.map(title => {
+        // 🔄 FORZAR que h1Title sea igual a title
+        const correctedTitle = {
+          ...title,
+          h1Title: title.title // Asegurar que sean idénticos
+        }
+        
+        const keywordInTitle = containsKeyword(correctedTitle.title, keyword)
+        const keywordInDescription = containsKeyword(correctedTitle.description, keyword)
+        
+        console.log('🔍 [RECALC] Título:', correctedTitle.title)
+        console.log('  - Keyword en título:', keywordInTitle)
+        console.log('  - Keyword en descripción:', keywordInDescription)
+        console.log('  - ✅ H1Title = Title:', correctedTitle.h1Title === correctedTitle.title)
+        
+        const updatedSeoScore = {
+          ...correctedTitle.seoScore,
+          keywordInTitle,
+          keywordInDescription,
+          titleLength: correctedTitle.title.length,
+          descriptionLength: correctedTitle.description.length
+        }
+        
+        const titleWithUpdatedScore = {
+          ...correctedTitle,
+          seoScore: updatedSeoScore
+        }
+        
+        const realScore = calculateRealSEOScore(titleWithUpdatedScore)
+        return {
+          ...titleWithUpdatedScore,
+          seoScore: {
+            ...updatedSeoScore,
+            overall: realScore
+          }
+        }
+      })
+      
+      setTitles(updatedTitles)
+      console.log('✅ [STEP2] Análisis SEO recalculado para', updatedTitles.length, 'títulos')
+    }
+  }, [keyword])
 
   const generateTitles = async (append: boolean = false) => {
     if (append) {
@@ -206,12 +594,69 @@ export function Step2Titles({ keyword, modelId, additionalKeywords: initialAddit
         (newTitle) => {
           console.log('🎯 [STEP2] Nuevo título recibido:', newTitle.title)
           
-          // Calcular score real
-          const realScore = calculateRealSEOScore(newTitle)
-          const titleWithScore = {
+          // 🚫 Validar solo criterios críticos (filtros relajados)
+          const existingTitles = titles.map(t => t.title)
+          
+          // Solo rechazar si NO tiene la keyword (crítico)
+          if (!containsCompleteKeyword(newTitle.title, keyword)) {
+            console.log('❌ [FILTER] Título rechazado (keyword incompleta):', newTitle.title)
+            return
+          }
+          
+          // Solo rechazar duplicados exactos
+          if (isDuplicateTitle(newTitle.title, existingTitles)) {
+            console.log('❌ [FILTER] Título rechazado (duplicado):', newTitle.title)
+            return
+          }
+          
+          // ADVERTIR pero NO rechazar otros problemas
+          if (!hasValidLengths(newTitle)) {
+            console.log('⚠️ [WARNING] Longitudes no óptimas pero aceptando:', newTitle.title)
+          }
+          
+          if (isArtificialTitle(newTitle.title)) {
+            console.log('⚠️ [WARNING] Título artificial pero aceptando:', newTitle.title)
+          }
+          
+          console.log('✅ [FILTER] Título aceptado:', newTitle.title)
+          
+          // 🔄 FORZAR que h1Title sea igual a title
+          const correctedTitle = {
             ...newTitle,
+            h1Title: newTitle.title // Asegurar que sean idénticos
+          }
+          
+          // Recalcular análisis SEO con la keyword actual
+          const keywordInTitle = containsKeyword(correctedTitle.title, keyword)
+          const keywordInDescription = containsKeyword(correctedTitle.description, keyword)
+          
+          console.log('🔍 [SEO DEBUG] Análisis para:', correctedTitle.title)
+          console.log('  - Keyword:', keyword)
+          console.log('  - Título normalizado:', normalizeText(correctedTitle.title))
+          console.log('  - Keyword normalizada:', normalizeText(keyword))
+          console.log('  - Keyword en título:', keywordInTitle)
+          console.log('  - Keyword en descripción:', keywordInDescription)
+          console.log('  - ✅ H1Title = Title:', correctedTitle.h1Title === correctedTitle.title)
+          
+          const updatedSeoScore = {
+            ...correctedTitle.seoScore,
+            keywordInTitle,
+            keywordInDescription,
+            titleLength: correctedTitle.title.length,
+            descriptionLength: correctedTitle.description.length
+          }
+          
+          // Calcular score real
+          const titleWithUpdatedScore = {
+            ...correctedTitle,
+            seoScore: updatedSeoScore
+          }
+          
+          const realScore = calculateRealSEOScore(titleWithUpdatedScore)
+          const titleWithScore = {
+            ...titleWithUpdatedScore,
             seoScore: {
-              ...newTitle.seoScore,
+              ...updatedSeoScore,
               overall: realScore
             }
           }
@@ -233,13 +678,63 @@ export function Step2Titles({ keyword, modelId, additionalKeywords: initialAddit
         
         console.log('✅ [STEP2] Títulos generados con método normal:', generatedTitles.length)
         
+        // Filtrar títulos artificiales y duplicados
+        const existingTitles = titles.map(t => t.title)
+        const filteredTitles = generatedTitles.filter(title => {
+          // Solo rechazar si NO tiene la keyword (crítico)
+          if (!containsCompleteKeyword(title.title, keyword)) {
+            console.log('❌ [FILTER] Título rechazado (keyword incompleta):', title.title)
+            return false
+          }
+          
+          // Solo rechazar duplicados exactos
+          if (isDuplicateTitle(title.title, existingTitles)) {
+            console.log('❌ [FILTER] Título rechazado (duplicado):', title.title)
+            return false
+          }
+          
+          // ADVERTIR pero NO rechazar otros problemas
+          if (!hasValidLengths(title)) {
+            console.log('⚠️ [WARNING] Longitudes no óptimas pero aceptando:', title.title)
+          }
+          
+          if (isArtificialTitle(title.title)) {
+            console.log('⚠️ [WARNING] Título artificial pero aceptando:', title.title)
+          }
+          
+          console.log('✅ [FILTER] Título aceptado:', title.title)
+          return true
+        })
+        
+        console.log(`📊 [FILTER] Títulos filtrados: ${generatedTitles.length} → ${filteredTitles.length}`)
+        
         // Recalculate SEO scores with the real algorithm
-        const titlesWithRealScores = generatedTitles.map(title => {
-          const realScore = calculateRealSEOScore(title)
-          return {
+        const titlesWithRealScores = filteredTitles.map(title => {
+          // 🔄 FORZAR que h1Title sea igual a title
+          const correctedTitle = {
             ...title,
+            h1Title: title.title // Asegurar que sean idénticos
+          }
+          
+          // Recalcular análisis SEO con la keyword actual
+          const updatedSeoScore = {
+            ...correctedTitle.seoScore,
+            keywordInTitle: containsKeyword(correctedTitle.title, keyword),
+            keywordInDescription: containsKeyword(correctedTitle.description, keyword),
+            titleLength: correctedTitle.title.length,
+            descriptionLength: correctedTitle.description.length
+          }
+          
+          const titleWithUpdatedScore = {
+            ...correctedTitle,
+            seoScore: updatedSeoScore
+          }
+          
+          const realScore = calculateRealSEOScore(titleWithUpdatedScore)
+          return {
+            ...titleWithUpdatedScore,
             seoScore: {
-              ...title.seoScore,
+              ...updatedSeoScore,
               overall: realScore
             }
           }
@@ -268,7 +763,12 @@ export function Step2Titles({ keyword, modelId, additionalKeywords: initialAddit
 
   const handleSelectTitle = () => {
     if (selectedTitle) {
-      onSelectTitle(selectedTitle.title, selectedTitle)
+      // Pasar también el estado actual de Step 2 para preservarlo cuando vuelva
+      const step2StateData = {
+        titles,
+        selectedTitle
+      }
+      onSelectTitle(selectedTitle.title, selectedTitle, step2StateData)
     }
   }
   
@@ -382,30 +882,42 @@ export function Step2Titles({ keyword, modelId, additionalKeywords: initialAddit
             </p>
           </div>
 
-          {/* Tips */}
+          {/* Tips SEO Mejorados */}
           <div className="border-t border-gray-200 pt-4 mt-4">
             <h4 className="text-sm font-bold text-[#2b2b40] mb-3 flex items-center gap-2">
               <Zap className="h-5 w-5 text-[#f54a00]" />
-              Tips
+              Tips SEO + UX
             </h4>
             <ul className="space-y-2 text-sm text-gray-600">
               <li className="flex items-start gap-2">
-                <div className="h-5 w-5 rounded-full bg-[#096] flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <CheckCircle className="h-3 w-3 text-white" />
+                <div className="h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Target className="h-3 w-3 text-white" />
                 </div>
-                <span>Score 80+ es excelente</span>
+                <span><strong>Keyword al inicio:</strong> Mejor posicionamiento</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <BarChart3 className="h-3 w-3 text-white" />
+                </div>
+                <span><strong>50-60 caracteres:</strong> Longitud ideal para Google</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <div className="h-5 w-5 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Sparkles className="h-3 w-3 text-white" />
+                </div>
+                <span><strong>Palabras de poder:</strong> "Guía", "Mejor", "2024"</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <div className="h-5 w-5 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <TrendingUp className="h-3 w-3 text-white" />
+                </div>
+                <span><strong>Números/Años:</strong> Aumentan credibilidad</span>
               </li>
               <li className="flex items-start gap-2">
                 <div className="h-5 w-5 rounded-full bg-[#096] flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <CheckCircle className="h-3 w-3 text-white" />
+                  <Award className="h-3 w-3 text-white" />
                 </div>
-                <span>Puedes editar cualquier título</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="h-5 w-5 rounded-full bg-[#096] flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <CheckCircle className="h-3 w-3 text-white" />
-                </div>
-                <span>Agrega más títulos cuando quieras</span>
+                <span><strong>Score 80+:</strong> Excelente para SEO</span>
               </li>
             </ul>
           </div>
@@ -638,18 +1150,9 @@ export function Step2Titles({ keyword, modelId, additionalKeywords: initialAddit
                               </p>
                             </div>
 
-                            {/* Badges críticos */}
-                            <div className="flex flex-wrap items-center gap-2 mb-3">
-                              {titleData.seoScore.keywordInTitle && (
-                                <Badge className="bg-[#096] text-white text-xs">
-                                  ✓ Keyword en título
-                                </Badge>
-                              )}
-                              {titleData.seoScore.keywordInDescription && (
-                                <Badge className="bg-[#096] text-white text-xs">
-                                  ✓ Keyword en descripción
-                                </Badge>
-                              )}
+                            {/* Indicadores SEO Visuales */}
+                            <div className="mb-3">
+                              <SEOFactors titleData={titleData} keyword={keyword} />
                             </div>
 
                             {/* Accordion - Detalles Adicionales */}

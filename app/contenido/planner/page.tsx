@@ -17,6 +17,8 @@ export default function ContentPlannerPage() {
   const [selectedTitleData, setSelectedTitleData] = useState<any>(null)
   const [generatedContent, setGeneratedContent] = useState<any>(null)
   const [step1Data, setStep1Data] = useState<any>(null)
+  const [step2Data, setStep2Data] = useState<any>(null)
+  const [step3Data, setStep3Data] = useState<any>(null)
   const [selectedModelId, setSelectedModelId] = useState<number>(0)
   const [additionalKeywords, setAdditionalKeywords] = useState<string>('')
 
@@ -34,9 +36,15 @@ export default function ContentPlannerPage() {
     setCurrentStep(2)
   }
 
-  const handleTitleSelect = (title: string, titleData?: any) => {
+  const handleTitleSelect = (title: string, titleData?: any, step2StateData?: any) => {
     setSelectedTitle(title)
     setSelectedTitleData(titleData)
+    
+    // Guardar los datos del Step 2 para cuando vuelva
+    if (step2StateData) {
+      setStep2Data(step2StateData)
+    }
+    
     setCurrentStep(3)
   }
 
@@ -78,6 +86,7 @@ export default function ContentPlannerPage() {
                 additionalKeywords={additionalKeywords}
                 onSelectTitle={handleTitleSelect}
                 onBack={() => setCurrentStep(1)}
+                initialData={step2Data}
               />
             )}
 
@@ -91,7 +100,13 @@ export default function ContentPlannerPage() {
                 objectivePhrase={selectedTitleData?.objectivePhrase}
                 modelId={selectedModelId}
                 onContentGenerated={handleContentGenerated}
-                onBack={() => setCurrentStep(2)}
+                onBack={(data) => {
+                  if (data) {
+                    setStep3Data(data)
+                  }
+                  setCurrentStep(2)
+                }}
+                initialData={step3Data}
               />
             )}
           </div>

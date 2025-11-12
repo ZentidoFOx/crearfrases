@@ -38,6 +38,12 @@ export function TranslationProgress({
           text: 'Preparando contenido para traducción...',
           color: 'text-blue-600'
         }
+      case 'translating-seo':
+        return {
+          icon: Globe,
+          text: '📝 PASO 1/2: Traduciendo campos SEO (Keyword, Título, Meta)...',
+          color: 'text-purple-600'
+        }
       case 'translating-metadata':
         return {
           icon: Globe,
@@ -47,7 +53,7 @@ export function TranslationProgress({
       case 'translating-content':
         return {
           icon: Sparkles,
-          text: 'Traduciendo contenido completo con IA...',
+          text: '✨ PASO 2/2: Traduciendo contenido completo (Streaming en tiempo real)...',
           color: 'text-indigo-600'
         }
       case 'saving':

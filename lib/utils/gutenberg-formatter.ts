@@ -11,107 +11,101 @@ interface GutenbergBlock {
 }
 
 /**
- * Convierte HTML a formato de bloques Gutenberg usando regex
- * Compatible con servidor (Node.js) y cliente (navegador)
+ * 🆕 NUEVO SISTEMA: Convierte HTML a Gutenberg manteniendo el orden EXACTO del original
+ * Procesa elemento por elemento en el orden que aparecen
  */
 export function htmlToGutenbergBlocks(html: string): string {
   if (!html) return ''
 
+  console.log('🔄 [GUTENBERG-V2] Iniciando conversión HTML -> Gutenberg (ORDEN PRESERVADO)')
+  console.log('📏 [GUTENBERG-V2] Longitud del HTML:', html.length)
+
   let gutenbergContent = ''
-  let processedHtml = html.trim()
   
-  // Procesar en orden: headings, images, lists, blockquotes, paragraphs
+  // 🔥 NUEVO: Usar un parser simple que procesa elemento por elemento EN ORDEN
+  // Regex para capturar CUALQUIER tag HTML en el orden que aparece
+  const htmlElementRegex = /<(h[1-6]|p|ul|ol|blockquote|figure|img)([^>]*)>([\s\S]*?)<\/\1>|<img([^>]*)>/gi
   
-  // 1. Convertir encabezados H1-H6
-  processedHtml = processedHtml.replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (match, level, content) => {
-    const block = createHeadingBlock(content, parseInt(level))
-    gutenbergContent += block
-    return '___PROCESSED___'
-  })
+  let match
+  const elements: Array<{type: string, content: string, attrs: string, index: number}> = []
   
-  // 2. Convertir imágenes (dentro de <figure> o solas)
-  processedHtml = processedHtml.replace(/<figure[^>]*>.*?<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*(?:title=["']([^"']*)["'])?[^>]*>.*?(?:<figcaption[^>]*>(.*?)<\/figcaption>)?.*?<\/figure>/gi, 
-    (match, src, alt, title, caption) => {
-      const block = createImageBlock(src, alt || '', caption || title || '')
-      gutenbergContent += block
-      return '___PROCESSED___'
-    })
-  
-  // 3. Imágenes sueltas
-  processedHtml = processedHtml.replace(/<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*(?:title=["']([^"']*)["'])?[^>]*>/gi, 
-    (match, src, alt, title) => {
-      const block = createImageBlock(src, alt || '', title || '')
-      gutenbergContent += block
-      return '___PROCESSED___'
-    })
-  
-  // 4. Convertir listas desordenadas
-  processedHtml = processedHtml.replace(/<ul[^>]*>(.*?)<\/ul>/gis, (match, content) => {
-    const items = content.match(/<li[^>]*>(.*?)<\/li>/gi) || []
-    if (items.length > 0) {
-      const listHtml = items.map((item: string) => {
-        const itemContent = item.replace(/<\/?li[^>]*>/gi, '')
-        return `<li>${itemContent}</li>`
-      }).join('')
-      
-      const block = `<!-- wp:list -->
-<ul>${listHtml}</ul>
-<!-- /wp:list -->
-
-`
-      gutenbergContent += block
-    }
-    return '___PROCESSED___'
-  })
-  
-  // 5. Convertir listas ordenadas
-  processedHtml = processedHtml.replace(/<ol[^>]*>(.*?)<\/ol>/gis, (match, content) => {
-    const items = content.match(/<li[^>]*>(.*?)<\/li>/gi) || []
-    if (items.length > 0) {
-      const listHtml = items.map((item: string) => {
-        const itemContent = item.replace(/<\/?li[^>]*>/gi, '')
-        return `<li>${itemContent}</li>`
-      }).join('')
-      
-      const block = `<!-- wp:list {"ordered":true} -->
-<ol>${listHtml}</ol>
-<!-- /wp:list -->
-
-`
-      gutenbergContent += block
-    }
-    return '___PROCESSED___'
-  })
-  
-  // 6. Convertir blockquotes
-  processedHtml = processedHtml.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gis, (match, content) => {
-    const block = createQuoteBlock(content)
-    gutenbergContent += block
-    return '___PROCESSED___'
-  })
-  
-  // 7. Convertir párrafos
-  processedHtml = processedHtml.replace(/<p[^>]*>(.*?)<\/p>/gis, (match, content) => {
-    // Ignorar párrafos vacíos o ya procesados
-    if (content.trim() && !content.includes('___PROCESSED___')) {
-      const block = createParagraphBlock(content)
-      gutenbergContent += block
-    }
-    return '___PROCESSED___'
-  })
-  
-  // 8. Procesar texto suelto que no está en etiquetas
-  const remainingText = processedHtml.replace(/___PROCESSED___/g, '').trim()
-  if (remainingText && !remainingText.match(/^<[^>]+>$/)) {
-    // Dividir por saltos de línea y crear párrafos
-    const lines = remainingText.split('\n').filter(line => line.trim())
-    lines.forEach(line => {
-      const cleanLine = line.replace(/<[^>]+>/g, '').trim()
-      if (cleanLine) {
-        gutenbergContent += createParagraphBlock(cleanLine)
-      }
+  // Extraer todos los elementos HTML EN ORDEN
+  while ((match = htmlElementRegex.exec(html)) !== null) {
+    const tagName = match[1] || 'img' // img es self-closing
+    const attrs = match[2] || match[4] || ''
+    const innerContent = match[3] || ''
+    
+    elements.push({
+      type: tagName.toLowerCase(),
+      content: innerContent,
+      attrs: attrs,
+      index: match.index
     })
   }
+  
+  console.log(`📦 [GUTENBERG-V2] Elementos encontrados: ${elements.length}`)
+  
+  // Procesar cada elemento EN EL ORDEN ORIGINAL
+  elements.forEach((element, idx) => {
+    console.log(`  ${idx + 1}. <${element.type}> - ${element.content.substring(0, 50)}...`)
+    
+    switch (element.type) {
+      case 'h1':
+      case 'h2':
+      case 'h3':
+      case 'h4':
+      case 'h5':
+      case 'h6':
+        const level = parseInt(element.type.charAt(1))
+        gutenbergContent += createHeadingBlock(element.content, level)
+        break
+        
+      case 'p':
+        if (element.content.trim()) {
+          gutenbergContent += createParagraphBlock(element.content)
+        }
+        break
+        
+      case 'ul':
+        const ulItems = element.content.match(/<li[^>]*>(.*?)<\/li>/gi) || []
+        if (ulItems.length > 0) {
+          const listHtml = ulItems.map((item: string) => {
+            const itemContent = item.replace(/<\/?li[^>]*>/gi, '')
+            return `<li>${itemContent}</li>`
+          }).join('')
+          gutenbergContent += `<!-- wp:list -->\n<ul>${listHtml}</ul>\n<!-- /wp:list -->\n\n`
+        }
+        break
+        
+      case 'ol':
+        const olItems = element.content.match(/<li[^>]*>(.*?)<\/li>/gi) || []
+        if (olItems.length > 0) {
+          const listHtml = olItems.map((item: string) => {
+            const itemContent = item.replace(/<\/?li[^>]*>/gi, '')
+            return `<li>${itemContent}</li>`
+          }).join('')
+          gutenbergContent += `<!-- wp:list {"ordered":true} -->\n<ol>${listHtml}</ol>\n<!-- /wp:list -->\n\n`
+        }
+        break
+        
+      case 'blockquote':
+        gutenbergContent += createQuoteBlock(element.content)
+        break
+        
+      case 'figure':
+      case 'img':
+        // Extraer src, alt del atributo
+        const srcMatch = element.attrs.match(/src=["']([^"']+)["']/)
+        const altMatch = element.attrs.match(/alt=["']([^"']+)["']/)
+        if (srcMatch) {
+          gutenbergContent += createImageBlock(srcMatch[1], altMatch?.[1] || '')
+        }
+        break
+    }
+  })
+  
+  console.log(`✅ [GUTENBERG-V2] Conversión completa. Bloques generados: ${elements.length}`)
+  console.log(`📦 [GUTENBERG-V2] Longitud salida: ${gutenbergContent.length} chars`)
   
   return gutenbergContent || createParagraphBlock('Contenido sin formato')
 }

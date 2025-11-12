@@ -6,6 +6,10 @@ import { useWebsite } from '@/contexts/website-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 interface WysiwygEditorProps {
   initialContent?: string
@@ -41,22 +45,68 @@ export function WysiwygEditor({
   const [isUpdating, setIsUpdating] = useState(false)
   const [lastContent, setLastContent] = useState('')
   const [showCursor, setShowCursor] = useState(false)
+  const [markdownContent, setMarkdownContent] = useState('')
+
+  // 🔥 Función para convertir Markdown a HTML usando react-markdown
+  const markdownToHtml = (markdown: string): string => {
+    if (!markdown) return '<p><br></p>'
+    
+    // Detectar si el contenido YA es HTML (buscar tags HTML comunes)
+    const hasHtmlTags = /<(p|h1|h2|h3|h4|div|span|strong|em|ul|ol|li|img|a)[^>]*>/i.test(markdown)
+    
+    if (hasHtmlTags) {
+      // Ya es HTML, retornar tal cual sin procesamiento
+      console.log('✅ Contenido detectado como HTML, usando directamente')
+      return markdown
+    }
+    
+    // Si tiene sintaxis markdown, convertir a HTML
+    const isMarkdown = markdown.includes('##') || markdown.includes('**') || markdown.includes('- ') || markdown.includes('1. ')
+    
+    if (isMarkdown) {
+      try {
+        // Convertir markdown a HTML usando react-markdown con plugins
+        console.log('🔄 Convirtiendo Markdown a HTML...')
+        const html = renderToStaticMarkup(
+          <ReactMarkdown 
+            remarkPlugins={[remarkGfm]} 
+            rehypePlugins={[rehypeRaw]}
+          >
+            {markdown}
+          </ReactMarkdown>
+        )
+        
+        return html
+      } catch (error) {
+        console.error('Error convirtiendo markdown:', error)
+        return markdown
+      }
+    }
+    
+    // Si no es ni HTML ni Markdown, envolver en párrafo
+    return `<p>${markdown}</p>`
+  }
 
   // 🔥 Efecto de ESCRITURA tipo ChatGPT (typewriter effect)
   useEffect(() => {
     if (initialContent !== content && !isUpdating) {
-      setContent(initialContent)
+      // Guardar contenido original (puede ser HTML o Markdown)
+      setMarkdownContent(initialContent)
       setIsUpdating(true)
       
       // Mostrar cursor mientras se escribe
       setShowCursor(true)
       
+      // Convertir a HTML si es necesario (detecta automáticamente)
+      const htmlContent = markdownToHtml(initialContent)
+      setContent(htmlContent)
+      
       // Usar requestAnimationFrame para sincronizar con el repaint del navegador
       requestAnimationFrame(() => {
         const editorElement = document.getElementById('wysiwyg-editor')
-        if (editorElement && initialContent) {
+        if (editorElement && htmlContent) {
           const currentHTML = editorElement.innerHTML.replace(/<span class="typing-cursor">.*?<\/span>/g, '')
-          const cleanInitialContent = initialContent.replace(/<span class="typing-cursor">.*?<\/span>/g, '')
+          const cleanInitialContent = htmlContent.replace(/<span class="typing-cursor">.*?<\/span>/g, '')
           
           // ✍️ EFECTO DE ESCRITURA: Solo actualizar si hay diferencia
           if (currentHTML !== cleanInitialContent) {

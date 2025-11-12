@@ -7,10 +7,21 @@ export interface OutlineSection {
   type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image'
   title: string
   paragraphs: number
-  characters: number
+  words: number
   items?: number
+  contentType?: 'paragraphs' | 'list' | 'numbered-list' // Tipo de contenido para encabezados
 }
 
+/**
+ * Hook para generar el OUTLINE (esqueleto del articulo)
+ * 
+ * IMPORTANTE: Este hook solo debe usarse para:
+ * - generateOutline(): Generar la estructura del articulo
+ * - outline/setOutline: Gestionar el esqueleto
+ * 
+ * Para generar el CONTENIDO, usar useSectionBySection() que genera
+ * seccion por seccion respetando el outline completamente.
+ */
 export const useContentGeneration = (modelId?: number) => {
   const [content, setContent] = useState<any>(null)
   const [isGenerating, setIsGenerating] = useState(false)

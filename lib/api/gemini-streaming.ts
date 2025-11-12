@@ -19,25 +19,25 @@ ${existingKeywords.length > 0 ? existingKeywords.map(k => `- ${k}`).join('\n') :
 
 Genera 15 sugerencias de palabras clave NUEVAS y DIFERENTES que NO estén en la lista anterior.
 
-🚨 REQUISITO CRÍTICO YOAST SEO: MÁXIMO 4 PALABRAS TOTALES POR FRASE CLAVE
+🚨 REQUISITO CRÍTICO YOAST SEO: 3-5 PALABRAS TOTALES POR FRASE CLAVE
 
 IMPORTANTE: Las frases DEBEN ser NATURALES y GRAMATICALMENTE CORRECTAS en español.
 Usa preposiciones y artículos cuando sean necesarios para que suene natural.
 
-EJEMPLOS CORRECTOS (máx 4 palabras totales, naturales):
+EJEMPLOS CORRECTOS (3-5 palabras totales, naturales):
 ✅ "tours de jaguares" → 3 palabras, natural ✓
 ✅ "safari en el pantanal" → 4 palabras, natural ✓
-✅ "avistamiento de jaguares" → 3 palabras, natural ✓
-✅ "jaguares en brasil" → 3 palabras, natural ✓
+✅ "avistamiento de jaguares salvajes" → 4 palabras, natural ✓
+✅ "mejor época para ver jaguares" → 5 palabras, natural ✓
 
 REQUISITOS OBLIGATORIOS:
-✓ MÁXIMO 4 palabras TOTALES (crítico para Yoast SEO)
+✓ EXACTAMENTE 3-5 palabras TOTALES (estándar Yoast SEO)
 ✓ Frases NATURALES en español con preposiciones/artículos necesarios
 ✓ Gramáticamente correctas y que suenen bien
 ✓ Relacionadas con "${baseKeyword}"
 ✓ Diferentes a las existentes
 
-Genera ahora 15 palabras clave NATURALES Y CORTAS (max 4 palabras totales).
+Genera ahora 15 palabras clave NATURALES (3-5 palabras totales).
 Devuelve SOLO las 15 palabras clave, una por línea, sin numeración ni explicaciones adicionales.`
 
   const countTotalWords = (phrase: string): number => {
@@ -46,7 +46,8 @@ Devuelve SOLO las 15 palabras clave, una por línea, sin numeración ni explicac
 
   try {
     for await (const suggestion of aiService.generateListStream(prompt, { temperature: 0.8 })) {
-      if (suggestion.length > 0 && countTotalWords(suggestion) <= 4) {
+      const wordCount = countTotalWords(suggestion)
+      if (suggestion.length > 0 && wordCount >= 3 && wordCount <= 5) {
         yield suggestion
       }
     }

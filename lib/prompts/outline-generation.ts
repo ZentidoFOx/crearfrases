@@ -100,9 +100,14 @@ ${exampleFormat}
 
 Responde ÚNICAMENTE con los títulos de las secciones, uno por línea.
 NO uses JSON, NO uses markdown de código (\`\`\`), SOLO texto plano.
-Usa ## para H2, ### para H3, #### para H4.
-Usa [LIST] para indicar listas con viñetas.
-Usa [NUMBERED-LIST] para indicar listas numeradas.
+
+**FORMATO MARKDOWN CORRECTO:**
+- Usa ## para H2, ### para H3, #### para H4
+- Usa [LIST] para indicar listas con viñetas
+- Usa [NUMBERED-LIST] para indicar listas numeradas
+- NO uses HTML como <h2>, <h3>, etc.
+- NO uses negritas (**) en los títulos de sección
+- Solo títulos limpios con # al inicio
 
 IMPORTANTE: Incluye la palabra clave "${keyword}" o variaciones en al menos el 40% de los títulos H2.
 

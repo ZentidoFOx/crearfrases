@@ -20,6 +20,7 @@ import * as readability from 'readability-scores'
 // @ts-ignore
 import nlp from 'compromise'
 import { SEOAnalyzer } from '@/components/contenido/planner/parts/seo-analyzer'
+import { validateYoastSEO, TRANSITION_WORDS } from '@/lib/utils/yoast-seo-optimizer'
 
 interface AnalyticsTabProps {
   article: any
@@ -86,14 +87,14 @@ export function AnalyticsTab({
     
     // Subtítulos H2 (15 puntos)
     maxScore += 15
-    const h2Count = (editedContent.match(/^## /gm) || []).length
+    const h2Count = (editedContent.match(/<h2[^>]*>/gi) || editedContent.match(/^## /gm) || []).length
     if (h2Count >= 5) score += 15
     else if (h2Count >= 3) score += 10
     else if (h2Count >= 1) score += 5
     
     // Enlaces (10 puntos)
     maxScore += 10
-    const linkCount = (editedContent.match(/\[.*?\]\(.*?\)/g) || []).length
+    const linkCount = (editedContent.match(/\[.*?\]\(.*?\)/g) || editedContent.match(/<a[^>]*>/gi) || []).length
     if (linkCount >= 5) score += 10
     else if (linkCount >= 2) score += 5
     
@@ -135,7 +136,7 @@ export function AnalyticsTab({
       
       // Ajustes por estructura (bonus/penalty)
       const paragraphs = editedContent.split(/\n\n+/).filter((p: string) => p.trim().length > 0)
-      const headingCount = (editedContent.match(/^#{2,3} /gm) || []).length
+      const headingCount = (editedContent.match(/<h[23][^>]*>/gi) || editedContent.match(/^#{2,3} /gm) || []).length
       
       // Bonus por buena estructura
       if (paragraphs.length >= 5 && headingCount >= 3) {
@@ -151,7 +152,24 @@ export function AnalyticsTab({
     }
   }, [editedContent, cleanText])
 
-  // Calcular Issues/Sugerencias
+  // Validación de Yoast SEO
+  const yoastValidation = useMemo(() => {
+    if (!editedContent || !article?.keyword) {
+      return {
+        hasTransitionWords: false,
+        sentenceLengthOk: true,
+        longSentencesPercentage: 0,
+        transitionWordsCount: 0,
+        boldKeywordsCount: 0,
+        issues: [],
+        suggestions: []
+      }
+    }
+    
+    return validateYoastSEO(editedContent, article.keyword)
+  }, [editedContent, article?.keyword])
+
+  // Calcular Issues/Sugerencias (incluyendo Yoast SEO)
   const issues = useMemo(() => {
     const problems: Array<{type: 'error' | 'warning' | 'success', text: string}> = []
     
@@ -159,8 +177,8 @@ export function AnalyticsTab({
     const lowerKeyword = article?.keyword?.toLowerCase() || ''
     const lowerTitle = article?.title?.toLowerCase() || ''
     const wordCount = editedContent.split(/\s+/).length
-    const h2Count = (editedContent.match(/^## /gm) || []).length
-    const linkCount = (editedContent.match(/\[.*?\]\(.*?\)/g) || []).length
+    const h2Count = (editedContent.match(/<h2[^>]*>/gi) || editedContent.match(/^## /gm) || []).length
+    const linkCount = (editedContent.match(/\[.*?\]\(.*?\)/g) || editedContent.match(/<a[^>]*>/gi) || []).length
     
     // SEO Issues
     if (lowerKeyword && !lowerTitle.includes(lowerKeyword)) {
@@ -289,8 +307,64 @@ export function AnalyticsTab({
       })
     }
     
+    // 🎯 VALIDACIONES ESPECÍFICAS DE YOAST SEO
+    
+    // 1. Palabras de transición
+    if (!yoastValidation.hasTransitionWords) {
+      problems.push({
+        type: 'error',
+        text: 'Palabras de transición: Ninguna de las frases contiene palabras de transición. Usa alguna.'
+      })
+    } else {
+      problems.push({
+        type: 'success',
+        text: `Palabras de transición: ${yoastValidation.transitionWordsCount} encontradas. ¡Excelente!`
+      })
+    }
+    
+    // 2. Longitud de oraciones
+    if (!yoastValidation.sentenceLengthOk) {
+      problems.push({
+        type: 'error',
+        text: `Longitud de las oraciones: El ${yoastValidation.longSentencesPercentage.toFixed(1)}% de las oraciones contienen más de 20 palabras, lo que supera el máximo recomendado del 25%.`
+      })
+    } else {
+      problems.push({
+        type: 'success',
+        text: `Longitud de oraciones: ${yoastValidation.longSentencesPercentage.toFixed(1)}% de oraciones largas. ¡Dentro del límite!`
+      })
+    }
+    
+    // 3. Keywords en negrita
+    if (yoastValidation.boldKeywordsCount === 0) {
+      problems.push({
+        type: 'warning',
+        text: 'No se encontraron palabras clave en negrita. Agrega **negritas** a palabras importantes.'
+      })
+    } else {
+      problems.push({
+        type: 'success',
+        text: `${yoastValidation.boldKeywordsCount} palabras clave en negrita. ¡Bien!`
+      })
+    }
+    
+    // 4. Agregar issues y sugerencias de Yoast SEO
+    yoastValidation.issues.forEach(issue => {
+      problems.push({
+        type: 'error',
+        text: issue
+      })
+    })
+    
+    yoastValidation.suggestions.forEach(suggestion => {
+      problems.push({
+        type: 'warning',
+        text: suggestion
+      })
+    })
+    
     return problems
-  }, [editedContent, article, cleanText])
+  }, [editedContent, article, cleanText, yoastValidation])
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return { bg: 'bg-green-500', text: 'text-green-600', light: 'bg-green-50' }
@@ -373,6 +447,7 @@ export function AnalyticsTab({
         </div>
       </div>
 
+
       {/* Content Structure - Visual Bars */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
         <div className="flex items-center gap-2 mb-4">
@@ -394,10 +469,10 @@ export function AnalyticsTab({
               <span className="text-sm text-gray-600 font-medium flex items-center gap-1">
                 <Hash className="h-3.5 w-3.5" /> H2
               </span>
-              <span className="text-sm font-bold text-gray-900">{(editedContent.match(/^## /gm) || []).length}</span>
+              <span className="text-sm font-bold text-gray-900">{(editedContent.match(/<h2[^>]*>/gi) || editedContent.match(/^## /gm) || []).length}</span>
             </div>
             <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full" style={{width: `${Math.min(((editedContent.match(/^## /gm) || []).length / 10) * 100, 100)}%`}} />
+              <div className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full" style={{width: `${Math.min(((editedContent.match(/<h2[^>]*>/gi) || editedContent.match(/^## /gm) || []).length / 10) * 100, 100)}%`}} />
             </div>
           </div>
           <div>
@@ -405,10 +480,10 @@ export function AnalyticsTab({
               <span className="text-sm text-gray-600 font-medium flex items-center gap-1">
                 <Hash className="h-3.5 w-3.5" /> H3
               </span>
-              <span className="text-sm font-bold text-gray-900">{(editedContent.match(/^### /gm) || []).length}</span>
+              <span className="text-sm font-bold text-gray-900">{(editedContent.match(/<h3[^>]*>/gi) || editedContent.match(/^### /gm) || []).length}</span>
             </div>
             <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-pink-500 to-pink-600 rounded-full" style={{width: `${Math.min(((editedContent.match(/^### /gm) || []).length / 20) * 100, 100)}%`}} />
+              <div className="h-full bg-gradient-to-r from-pink-500 to-pink-600 rounded-full" style={{width: `${Math.min(((editedContent.match(/<h3[^>]*>/gi) || editedContent.match(/^### /gm) || []).length / 20) * 100, 100)}%`}} />
             </div>
           </div>
           <div>
@@ -416,10 +491,10 @@ export function AnalyticsTab({
               <span className="text-sm text-gray-600 font-medium flex items-center gap-1">
                 <Link2 className="h-3.5 w-3.5" /> Enlaces
               </span>
-              <span className="text-sm font-bold text-gray-900">{(editedContent.match(/\[.*?\]\(.*?\)/g) || []).length}</span>
+              <span className="text-sm font-bold text-gray-900">{(editedContent.match(/\[.*?\]\(.*?\)/g) || editedContent.match(/<a[^>]*>/gi) || []).length}</span>
             </div>
             <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full" style={{width: `${Math.min(((editedContent.match(/\[.*?\]\(.*?\)/g) || []).length / 15) * 100, 100)}%`}} />
+              <div className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full" style={{width: `${Math.min(((editedContent.match(/\[.*?\]\(.*?\)/g) || editedContent.match(/<a[^>]*>/gi) || []).length / 15) * 100, 100)}%`}} />
             </div>
           </div>
           <div>
@@ -441,6 +516,142 @@ export function AnalyticsTab({
         title={article?.title || ''}
         metaDescription={article?.meta_description || ''}
       />
+
+      {/* 🎯 Yoast SEO Validation - DESPUÉS del análisis */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Target className="h-4 w-4 text-green-600" />
+          <h3 className="text-sm font-bold text-gray-800">Validación Yoast SEO</h3>
+          <Badge 
+            variant={yoastValidation.hasTransitionWords && yoastValidation.sentenceLengthOk && yoastValidation.boldKeywordsCount > 0 ? "default" : "destructive"}
+            className="text-xs"
+          >
+            {yoastValidation.hasTransitionWords && yoastValidation.sentenceLengthOk && yoastValidation.boldKeywordsCount > 0 ? 'Todo correcto' : 'Hay problemas'}
+          </Badge>
+        </div>
+        
+        <div className="space-y-3">
+          {/* Palabras de transición */}
+          <div className={`flex items-center justify-between p-3 rounded-lg border-2 ${
+            yoastValidation.hasTransitionWords 
+              ? 'border-green-200 bg-green-50' 
+              : 'border-red-200 bg-red-50'
+          }`}>
+            <div className="flex items-center gap-3">
+              {yoastValidation.hasTransitionWords ? (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <AlertCircle className="h-5 w-5 text-red-600" />
+              )}
+              <div>
+                <div className="text-sm font-medium text-gray-900">Palabras de transición</div>
+                <div className="text-xs text-gray-600">
+                  {yoastValidation.hasTransitionWords 
+                    ? `✅ ${yoastValidation.transitionWordsCount} encontradas - Perfecto` 
+                    : '❌ Ninguna encontrada - PROBLEMA'
+                  }
+                </div>
+              </div>
+            </div>
+            <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+              yoastValidation.hasTransitionWords 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {yoastValidation.hasTransitionWords ? 'CORRECTO' : 'ERROR'}
+            </div>
+          </div>
+          
+          {/* Longitud de oraciones */}
+          <div className={`flex items-center justify-between p-3 rounded-lg border-2 ${
+            yoastValidation.sentenceLengthOk 
+              ? 'border-green-200 bg-green-50' 
+              : 'border-red-200 bg-red-50'
+          }`}>
+            <div className="flex items-center gap-3">
+              {yoastValidation.sentenceLengthOk ? (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <AlertCircle className="h-5 w-5 text-red-600" />
+              )}
+              <div>
+                <div className="text-sm font-medium text-gray-900">Longitud de oraciones</div>
+                <div className="text-xs text-gray-600">
+                  {yoastValidation.sentenceLengthOk 
+                    ? `✅ ${yoastValidation.longSentencesPercentage.toFixed(1)}% largas - Dentro del límite` 
+                    : `❌ ${yoastValidation.longSentencesPercentage.toFixed(1)}% largas - SUPERA EL 25%`
+                  }
+                </div>
+              </div>
+            </div>
+            <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+              yoastValidation.sentenceLengthOk 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {yoastValidation.sentenceLengthOk ? 'CORRECTO' : 'ERROR'}
+            </div>
+          </div>
+          
+          {/* Keywords en negrita */}
+          <div className={`flex items-center justify-between p-3 rounded-lg border-2 ${
+            yoastValidation.boldKeywordsCount > 0 
+              ? 'border-green-200 bg-green-50' 
+              : 'border-yellow-200 bg-yellow-50'
+          }`}>
+            <div className="flex items-center gap-3">
+              {yoastValidation.boldKeywordsCount > 0 ? (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              )}
+              <div>
+                <div className="text-sm font-medium text-gray-900">Keywords en negrita</div>
+                <div className="text-xs text-gray-600">
+                  {yoastValidation.boldKeywordsCount > 0 
+                    ? `✅ ${yoastValidation.boldKeywordsCount} encontradas - Bien` 
+                    : '⚠️ 0 encontradas - Recomendado agregar'
+                  }
+                </div>
+              </div>
+            </div>
+            <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+              yoastValidation.boldKeywordsCount > 0 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {yoastValidation.boldKeywordsCount > 0 ? 'BIEN' : 'MEJORAR'}
+            </div>
+          </div>
+        </div>
+        
+        {/* Resumen de problemas */}
+        {(!yoastValidation.hasTransitionWords || !yoastValidation.sentenceLengthOk) && (
+          <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <div className="text-sm font-bold text-red-800">PROBLEMAS DETECTADOS:</div>
+            </div>
+            <div className="space-y-1 text-sm text-red-700">
+              {!yoastValidation.hasTransitionWords && (
+                <div>• Agrega palabras como "además", "por ejemplo", "sin embargo" al inicio de párrafos</div>
+              )}
+              {!yoastValidation.sentenceLengthOk && (
+                <div>• Divide oraciones largas (más de 20 palabras) usando puntos o comas</div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {(yoastValidation.hasTransitionWords && yoastValidation.sentenceLengthOk) && (
+          <div className="mt-4 p-4 bg-green-50 border-2 border-green-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <div className="text-sm font-bold text-green-800">✅ Artículo optimizado para Yoast SEO</div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

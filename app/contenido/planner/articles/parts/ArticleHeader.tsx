@@ -20,31 +20,32 @@ import {
   AlertTriangle,
   X,
   Sparkles,
-  Cpu
+  Cpu,
+  CheckCircle2
 } from 'lucide-react'
 
 interface ArticleHeaderProps {
   article: any
   saving: boolean
   deleting: boolean
-  humanizing?: boolean
-  currentLanguage?: string
-  loadingTranslation?: boolean
-  selectedModelId?: number | null
-  availableModels?: any[]
-  isLoadingModels?: boolean
-  onModelChange?: (modelId: number) => void
-  onSave: () => void
-  onSubmit: () => void
-  onDelete: () => void
+  currentLanguage: string
+  loadingTranslation: boolean
+  availableModels: any[]
+  selectedModelId: number
+  onModelChange: (modelId: number) => void
   showLanguageMenu: boolean
   setShowLanguageMenu: (show: boolean) => void
   languagesHook: any
   onTranslate: (langCode: string) => void
-  onLanguageChange?: (langCode: string) => void
+  onLanguageChange: (langCode: string) => void
+  onSave: () => void
+  onDelete: () => void
   onGooglePreview: () => void
-  onDeleteTranslation?: () => void
+  onDeleteTranslation: () => void
+  humanizing?: boolean
   onHumanize?: () => void
+  optimizingReadability?: boolean
+  onOptimizeReadability?: () => void
 }
 
 export function ArticleHeader({
@@ -52,14 +53,13 @@ export function ArticleHeader({
   saving,
   deleting,
   humanizing = false,
+  optimizingReadability = false,
   currentLanguage = 'es',
   loadingTranslation = false,
-  selectedModelId = null,
+  selectedModelId,
   availableModels = [],
-  isLoadingModels = false,
   onModelChange,
   onSave,
-  onSubmit,
   onDelete,
   showLanguageMenu,
   setShowLanguageMenu,
@@ -68,7 +68,8 @@ export function ArticleHeader({
   onLanguageChange,
   onGooglePreview,
   onDeleteTranslation,
-  onHumanize
+  onHumanize,
+  onOptimizeReadability
 }: ArticleHeaderProps) {
   const router = useRouter()
   const [showTranslateModal, setShowTranslateModal] = useState(false)
@@ -130,11 +131,7 @@ export function ArticleHeader({
               <span className="text-sm font-semibold text-gray-900">
                 {selectedModel ? selectedModel.name : 'Modelo de IA'}
               </span>
-              {isLoadingModels ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-600" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 text-gray-600" />
-              )}
+              <ChevronDown className="h-3.5 w-3.5 text-gray-600" />
             </button>
 
             {showModelMenu && (
@@ -146,7 +143,7 @@ export function ArticleHeader({
                 />
                 
                 <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                  {isLoadingModels ? (
+                  {availableModels.length === 0 ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
                     </div>
@@ -393,8 +390,8 @@ export function ArticleHeader({
                           </div>
                         )}
                         
-                        {/* Idiomas disponibles para traducir */}
-                        {languagesHook.languages.filter((lang: any) => !article.available_languages?.includes(lang.code)).length > 0 && (
+                        {/* Idiomas disponibles para traducir - SOLO en idioma principal */}
+                        {!isViewingTranslation && languagesHook.languages.filter((lang: any) => !article.available_languages?.includes(lang.code)).length > 0 && (
                           <div>
                             <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider px-1.5 mb-1.5">
                               Traducir a
@@ -455,29 +452,8 @@ export function ArticleHeader({
         <div className="flex items-center gap-2">
           {/* Botones para traducción */}
           {isViewingTranslation ? (
+            /* Botones cuando se está viendo una TRADUCCIÓN (sin Humanizar ni Traducir) */
             <>
-              {onHumanize && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onHumanize}
-                  disabled={humanizing}
-                  className="h-8 px-4 border-orange-200 text-orange-700 hover:bg-orange-50"
-                >
-                  {humanizing ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                      Humanizando
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                      Humanizar y Optimizar
-                    </>
-                  )}
-                </Button>
-              )}
-
               <Button
                 variant="outline"
                 size="sm"
@@ -543,7 +519,29 @@ export function ArticleHeader({
                   ) : (
                     <>
                       <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                      Humanizar y Optimizar
+                      Humanizar
+                    </>
+                  )}
+                </Button>
+              )}
+              
+              {onOptimizeReadability && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onOptimizeReadability}
+                  disabled={optimizingReadability}
+                  className="h-8 px-4 border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  {optimizingReadability ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      Optimizando
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                      Optimizar Legibilidad
                     </>
                   )}
                 </Button>

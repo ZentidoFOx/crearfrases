@@ -17,7 +17,69 @@ import { useWebsite } from '@/contexts/website-context'
 
 // Helper function to count total words in phrase
 const countTotalWords = (phrase: string): number => {
-  return phrase.trim().split(/\s+/).length
+  return phrase.trim().split(/\s+/).filter(word => word.length > 0).length
+}
+
+// Helper function to validate Yoast SEO word count (3-5 words)
+const isValidYoastKeyword = (phrase: string): boolean => {
+  const wordCount = countTotalWords(phrase)
+  return wordCount >= 3 && wordCount <= 5
+}
+
+// Helper function to validate if phrase makes sense (has proper Spanish grammar)
+const hasSenseInSpanish = (phrase: string): boolean => {
+  // Basic validation for Spanish phrases
+  const trimmed = phrase.trim().toLowerCase()
+  
+  // Must not be empty or too short
+  if (trimmed.length < 5) return false
+  
+  // Should not start or end with prepositions/articles alone
+  const invalidStarts = ['de ', 'en ', 'con ', 'para ', 'a ', 'el ', 'la ', 'los ', 'las ']
+  const invalidEnds = [' de', ' en', ' con', ' para', ' a', ' el', ' la', ' los', ' las']
+  
+  // Check if starts with invalid patterns
+  if (invalidStarts.some(start => trimmed.startsWith(start))) return false
+  
+  // Check if ends with invalid patterns  
+  if (invalidEnds.some(end => trimmed.endsWith(end))) return false
+  
+  // Should contain at least one meaningful word (not just articles/prepositions)
+  const meaningfulWords = trimmed.split(/\s+/).filter(word => 
+    !['de', 'en', 'con', 'para', 'a', 'el', 'la', 'los', 'las', 'y', 'o', 'pero', 'que'].includes(word)
+  )
+  
+  return meaningfulWords.length >= 2 // At least 2 meaningful words
+}
+
+// Helper function to filter and validate AI suggestions
+const filterValidKeywords = (suggestions: string[], existingKeywords: string[] = []): string[] => {
+  return suggestions
+    .map(suggestion => suggestion.trim())
+    .filter(suggestion => {
+      // Remove empty suggestions
+      if (!suggestion || suggestion.length === 0) return false
+      
+      // Remove duplicates (case insensitive)
+      const lowerSuggestion = suggestion.toLowerCase()
+      if (existingKeywords.some(existing => existing.toLowerCase() === lowerSuggestion)) return false
+      
+      // Validate Yoast SEO word count (3-5 words)
+      if (!isValidYoastKeyword(suggestion)) {
+        console.log(`❌ [YOAST] Rechazada "${suggestion}" - ${countTotalWords(suggestion)} palabras (debe ser 3-5)`)
+        return false
+      }
+      
+      // Validate Spanish grammar sense
+      if (!hasSenseInSpanish(suggestion)) {
+        console.log(`❌ [GRAMMAR] Rechazada "${suggestion}" - no tiene sentido gramatical`)
+        return false
+      }
+      
+      console.log(`✅ [VALID] Aceptada "${suggestion}" - ${countTotalWords(suggestion)} palabras`)
+      return true
+    })
+    .slice(0, 15) // Limit to 15 suggestions
 }
 
 // Componente para el gráfico de tendencia
@@ -348,11 +410,17 @@ export function Step1Keyword({ onSubmit, initialKeyword = '', initialData }: Ste
         (newSuggestion) => {
           // Callback ejecutado por cada nueva sugerencia
           console.log('🎯 [STEP1] Nueva sugerencia recibida:', newSuggestion)
-          console.log('📏 [STEP1] Longitud:', newSuggestion.length)
+          console.log('📏 [STEP1] Palabras:', countTotalWords(newSuggestion))
           
-          collectedSuggestions.push(newSuggestion)
-          setAiSuggestions([...collectedSuggestions])
-          console.log('✅ [STEP1] Total sugerencias acumuladas:', collectedSuggestions.length)
+          // Validar antes de agregar
+          if (isValidYoastKeyword(newSuggestion) && hasSenseInSpanish(newSuggestion)) {
+            collectedSuggestions.push(newSuggestion)
+            setAiSuggestions([...collectedSuggestions])
+            console.log('✅ [STEP1] Sugerencia válida agregada:', newSuggestion)
+            console.log('📊 [STEP1] Total sugerencias válidas:', collectedSuggestions.length)
+          } else {
+            console.log('❌ [STEP1] Sugerencia rechazada:', newSuggestion, `(${countTotalWords(newSuggestion)} palabras)`)
+          }
           
           // Cambiar al tab de sugerencias cuando llegue la PRIMERA keyword
           if (collectedSuggestions.length === 1) {
@@ -385,24 +453,29 @@ export function Step1Keyword({ onSubmit, initialKeyword = '', initialData }: Ste
       if (!streamingSuccess) {
         console.log('⚠️ [STEP1] Streaming no soportado, usando método normal...')
         
-        const suggestions = await aiService.generateKeywordSuggestions(
+        const rawSuggestions = await aiService.generateKeywordSuggestions(
           baseKeyword, 
           existingKeywords, 
           modelId
         )
         
-        console.log('✅ [STEP1] Sugerencias generadas con método normal:', suggestions.length)
-        setAiSuggestions(suggestions)
+        console.log('📥 [STEP1] Sugerencias brutas recibidas:', rawSuggestions.length)
+        
+        // Filtrar y validar sugerencias
+        const validSuggestions = filterValidKeywords(rawSuggestions, existingKeywords)
+        
+        console.log('✅ [STEP1] Sugerencias válidas después del filtro:', validSuggestions.length)
+        setAiSuggestions(validSuggestions)
         
         // Cambiar al tab de sugerencias cuando termine la generación normal
-        if (suggestions.length > 0) {
+        if (validSuggestions.length > 0) {
           console.log('📑 [STEP1] Cambiando a tab de sugerencias (generación completada)')
           setActiveResultsTab('suggestions')
         }
         
         // Analizar automáticamente las primeras 5 sugerencias
-        if (suggestions.length > 0 && activeWebsite) {
-          const suggestionsToAnalyze = suggestions.slice(0, 5)
+        if (validSuggestions.length > 0 && activeWebsite) {
+          const suggestionsToAnalyze = validSuggestions.slice(0, 5)
           
           for (const suggestion of suggestionsToAnalyze) {
             try {
@@ -1051,16 +1124,45 @@ export function Step1Keyword({ onSubmit, initialKeyword = '', initialData }: Ste
                             const volume = [40, 20, 10, 30, 50][idx % 5]
                             const difficulty = [0, 19, 5, 12, 8][idx % 5]
                             const wordCount = countTotalWords(suggestion)
+                            const isValidWordCount = isValidYoastKeyword(suggestion)
                             
                             return (
                               <div 
                                 key={idx}
                                 className="group flex items-center gap-3 p-3 bg-gray-50 hover:bg-white border border-gray-200 hover:border-emerald-300 rounded-lg transition-all cursor-pointer"
                               >
-                                {/* Left - Word Count Badge */}
-                                <div className="flex-shrink-0">
-                                  <div className="h-9 w-9 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-                                    <span className="text-xs font-bold text-emerald-700">{wordCount}w</span>
+                                {/* Left - Yoast SEO Word Count Badge */}
+                                <div className="flex-shrink-0 relative group">
+                                  <div className={`h-9 w-9 rounded-lg border flex items-center justify-center cursor-help ${
+                                    isValidWordCount 
+                                      ? 'bg-emerald-50 border-emerald-200' 
+                                      : 'bg-amber-50 border-amber-200'
+                                  }`}>
+                                    <span className={`text-xs font-bold ${
+                                      isValidWordCount 
+                                        ? 'text-emerald-700' 
+                                        : 'text-amber-700'
+                                    }`}>
+                                      {wordCount}p
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Tooltip */}
+                                  <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                    <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg">
+                                      <div className="font-semibold mb-1">
+                                        {isValidWordCount ? '✅ Cumple Yoast SEO' : '⚠️ Fuera del rango'}
+                                      </div>
+                                      <div className="text-gray-300 text-[11px] leading-relaxed">
+                                        {isValidWordCount 
+                                          ? `Esta frase tiene ${wordCount} palabras, perfecto para Yoast SEO (3-5 palabras recomendadas).`
+                                          : `Esta frase tiene ${wordCount} palabras. Yoast SEO recomienda 3-5 palabras para mejor optimización.`
+                                        }
+                                      </div>
+                                      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px">
+                                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                                 
@@ -1394,7 +1496,7 @@ export function Step1Keyword({ onSubmit, initialKeyword = '', initialData }: Ste
               </div>
               <div>
                 <p className="font-semibold text-gray-900 text-sm">Específicas</p>
-                <p className="text-xs text-gray-600">Usa 3-6 palabras para mejor precisión.</p>
+                <p className="text-xs text-gray-600">Usa 3-5 palabras según Yoast SEO.</p>
               </div>
             </div>
             <div className="flex items-start gap-3">

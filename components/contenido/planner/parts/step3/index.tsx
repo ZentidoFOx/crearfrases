@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { useWebsite } from '@/contexts/website-context'
 import { OutlineEditorAdvanced } from '../outline-editor-advanced'
 
@@ -9,17 +10,20 @@ import { OutlineEditorAdvanced } from '../outline-editor-advanced'
 import { Step3ContentProps, DetailLevel } from './types'
 
 // Utils
-import { generateMarkdown } from './utils'
+import { generateMarkdown, markdownToHtml } from './utils'
 
 // Hooks
 import { useContentGeneration } from './hooks/useContentGeneration'
 import { useSaveArticle } from './hooks/useSaveArticle'
+import { useSectionBySection } from './hooks/useSectionBySection'
 
 // Components
 import { PlannerConfig } from './components/PlannerConfig'
 import { SidebarTabs } from './components/SidebarTabs'
 import { InfoPanel } from './components/InfoPanel'
 import { LoadingOutline, LoadingContent } from './components/LoadingStates'
+import { SectionProgress } from './components/SectionProgress'
+import { SectionCard } from './components/SectionCard'
 
 export function Step3Content({ 
   keyword, 
@@ -30,14 +34,15 @@ export function Step3Content({
   objectivePhrase,
   modelId,
   onContentGenerated, 
-  onBack 
+  onBack,
+  initialData
 }: Step3ContentProps) {
   const { activeWebsite } = useWebsite()
   
-  // Planificador de contenido
-  const [showPlanner, setShowPlanner] = useState(true)
-  const [numSections, setNumSections] = useState(5)
-  const [detailLevel, setDetailLevel] = useState<DetailLevel>('medium')
+  // Planificador de contenido - inicializar con datos guardados
+  const [showPlanner, setShowPlanner] = useState(initialData?.showPlanner ?? true)
+  const [numSections, setNumSections] = useState(initialData?.numSections ?? 5)
+  const [detailLevel, setDetailLevel] = useState<DetailLevel>(initialData?.detailLevel ?? 'medium')
   
   // H1 Title (diferente del SEO title)
   const [h1Title, setH1Title] = useState(initialH1Title || title)
@@ -45,6 +50,19 @@ export function Step3Content({
   // Hooks
   const contentGeneration = useContentGeneration(modelId)
   const saveArticle = useSaveArticle()
+  const sectionBySection = useSectionBySection(modelId)
+  
+  // Restaurar outline y secciones si existen
+  React.useEffect(() => {
+    if (initialData?.outline && initialData.outline.length > 0) {
+      contentGeneration.setOutline(initialData.outline)
+      contentGeneration.setShowOutline(true)
+      setShowPlanner(false)
+      if (initialData.introParagraphs) {
+        contentGeneration.setIntroParagraphs(initialData.introParagraphs)
+      }
+    }
+  }, [initialData])
 
   const handleGenerateOutline = async () => {
     setShowPlanner(false)
@@ -53,24 +71,49 @@ export function Step3Content({
 
   const handleGenerateContent = async () => {
     try {
-      const result = await contentGeneration.generateContent(
+      // Iniciar generación sección por sección
+      await sectionBySection.startGeneration(
         title,
         keyword,
-        numSections,
-        detailLevel,
-        description,
-        undefined, // No llamar onContentGenerated para evitar mostrar el editor
-        undefined // Ya no necesitamos el callback de SEO, se analiza en AnalyticsTab
+        contentGeneration.outline,
+        contentGeneration.introParagraphs,
+        detailLevel
       )
       
-      // Generar markdown del contenido
-      const markdown = generateMarkdown(result.content)
+      // Una vez completado, obtener el markdown con enforcement final y convertir a HTML
+      const markdown = sectionBySection.getFullMarkdown(keyword)
       
-      // Guardar automáticamente y redirigir SIN actualizar el estado del editor
-      await handleSaveArticleWithContent(markdown)
+      if (markdown) {
+        // 🔥 CONVERTIR MARKDOWN A HTML antes de guardar
+        console.log('🔄 [STEP3] Markdown obtenido, longitud:', markdown.length)
+        console.log('🔄 [STEP3] Primeros 300 chars:', markdown.substring(0, 300))
+        
+        const htmlContent = markdownToHtml(markdown)
+        
+        console.log('✅ [STEP3] Contenido convertido de Markdown a HTML')
+        console.log('📏 [STEP3] Markdown length:', markdown.length)
+        console.log('📏 [STEP3] HTML length:', htmlContent.length)
+        console.log('📄 [STEP3] Primeros 300 chars HTML:', htmlContent.substring(0, 300))
+        
+        await handleSaveArticleWithContent(htmlContent)
+      }
     } catch (error) {
       console.error('Error generando contenido:', error)
       // El error ya se maneja en el hook
+    }
+  }
+
+  const handleRegenerateSection = async (sectionIndex: number) => {
+    try {
+      await sectionBySection.regenerateSection(
+        sectionIndex,
+        title,
+        keyword,
+        contentGeneration.outline,
+        detailLevel
+      )
+    } catch (error) {
+      console.error('Error regenerando sección:', error)
     }
   }
   
@@ -80,10 +123,10 @@ export function Step3Content({
       return
     }
 
-    // Extraer secciones del contenido markdown
-    const sectionsMatch = content.match(/##\s+([^\n]+)/g)
+    // 🔥 Extraer secciones del contenido HTML (buscar <h2> tags)
+    const sectionsMatch = content.match(/<h2[^>]*>(.*?)<\/h2>/gi)
     const sections = sectionsMatch?.map((heading, idx) => {
-      const title = heading.replace(/^##\s+/, '')
+      const title = heading.replace(/<\/?h2[^>]*>/gi, '').trim()
       return {
         heading: title,
         content: '',
@@ -91,13 +134,24 @@ export function Step3Content({
       }
     }) || []
 
+    console.log('💾 [SAVE] Guardando artículo con contenido HTML')
+    console.log('📊 [SAVE] Secciones detectadas:', sections.length)
+    console.log('📏 [SAVE] Tamaño del contenido:', content.length, 'caracteres')
+    console.log('🔍 [SAVE] ¿Es HTML? Verificando tags...')
+    console.log('   - Tiene <h2>:', content.includes('<h2>'))
+    console.log('   - Tiene <p>:', content.includes('<p>'))
+    console.log('   - Tiene <strong>:', content.includes('<strong>'))
+    console.log('   - Tiene ## (markdown):', content.includes('##'))
+    console.log('   - Tiene ** (markdown):', content.includes('**'))
+    console.log('📄 [SAVE] Primeros 500 chars del content:', content.substring(0, 500))
+
     const articleData = {
       title: title,
       h1_title: h1Title,
       keyword: keyword,
       objective_phrase: objectivePhrase || undefined,
       keywords_array: keywords && keywords.length > 0 ? keywords : undefined,
-      content: content,
+      content: content, // 🔥 Ahora es HTML, no markdown
       sections_json: sections.length > 0 ? sections : undefined,
       meta_description: description || undefined,
       // SEO data se calcula dinámicamente en AnalyticsTab con readability-scores
@@ -107,12 +161,29 @@ export function Step3Content({
       content_type: 'planner' as const,
       status: 'draft' as const
     }
+    
+    console.log('📤 [SAVE] Enviando articleData.content (primeros 300 chars):', articleData.content.substring(0, 300))
 
     await saveArticle.saveAndRedirect(articleData)
   }
 
   const handleRegenerateOutline = async () => {
     await contentGeneration.generateOutline(title, keyword, numSections, detailLevel)
+  }
+
+  const handleBack = () => {
+    // Guardar estado actual antes de volver
+    const step3Data = {
+      showPlanner,
+      numSections,
+      detailLevel,
+      outline: contentGeneration.outline,
+      introParagraphs: contentGeneration.introParagraphs,
+      sections: sectionBySection.sections
+    }
+    
+    // Llamar onBack con los datos
+    onBack(step3Data)
   }
 
   return (
@@ -159,12 +230,12 @@ export function Step3Content({
               setDetailLevel={setDetailLevel}
               isGeneratingOutline={contentGeneration.isGeneratingOutline}
               onGenerateOutline={handleGenerateOutline}
-              onBack={onBack}
+              onBack={handleBack}
             />
           )}
 
           {/* Outline Editor (Vista Previa del Esqueleto) */}
-          {!showPlanner && contentGeneration.showOutline && contentGeneration.outline.length > 0 && !contentGeneration.isGenerating && (
+          {!showPlanner && contentGeneration.showOutline && contentGeneration.outline.length > 0 && !contentGeneration.isGenerating && !sectionBySection.isGenerating && sectionBySection.sections.length === 0 && (
             <OutlineEditorAdvanced
               outline={contentGeneration.outline}
               keyword={keyword}
@@ -178,9 +249,9 @@ export function Step3Content({
           )}
 
           {/* Error Message */}
-          {contentGeneration.error && (
+          {(contentGeneration.error || sectionBySection.error) && (
             <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{contentGeneration.error}</AlertDescription>
+              <AlertDescription>{contentGeneration.error || sectionBySection.error}</AlertDescription>
             </Alert>
           )}
 
@@ -189,14 +260,74 @@ export function Step3Content({
             <LoadingOutline numSections={numSections} />
           )}
 
-          {/* Loading State - Generating Content */}
-          {contentGeneration.isGenerating && (
-            <LoadingContent generationStep={contentGeneration.generationStep} />
-          )}
-          
-          {/* Success Message - Generation Complete */}
-          {!contentGeneration.isGenerating && contentGeneration.generationStep === 'done' && (
-            <LoadingContent generationStep="done" />
+          {/* Section by Section Generation Progress */}
+          {(sectionBySection.isGenerating || sectionBySection.sections.length > 0) && (
+            <div className="space-y-4">
+              {/* Progress Panel */}
+              <SectionProgress
+                sections={sectionBySection.sections}
+                currentSectionIndex={sectionBySection.currentSectionIndex}
+                isGenerating={sectionBySection.isGenerating}
+                isPaused={sectionBySection.isPaused}
+                progress={sectionBySection.progress}
+                error={sectionBySection.error}
+                onPause={sectionBySection.pauseGeneration}
+                onResume={() => sectionBySection.resumeGeneration(title, keyword, contentGeneration.outline, detailLevel)}
+                onCancel={sectionBySection.cancelGeneration}
+                onRegenerateSection={handleRegenerateSection}
+                onBack={handleBack}
+              />
+
+              {/* Generated Sections Preview */}
+              {sectionBySection.sections.filter(s => s.status === 'completed').length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold">Secciones Generadas</h3>
+                  {sectionBySection.sections
+                    .filter(s => s.status === 'completed')
+                    .map((section, idx) => (
+                      <SectionCard key={section.id} section={section} index={idx} />
+                    ))}
+                </div>
+              )}
+
+              {/* Save Button - Show when all completed */}
+              {!sectionBySection.isGenerating && 
+               sectionBySection.sections.length > 0 && 
+               sectionBySection.sections.every(s => s.status === 'completed') && (
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => {
+                      // 🔥 CONVERTIR MARKDOWN A HTML antes de guardar con enforcement final
+                      const markdown = sectionBySection.getFullMarkdown(keyword)
+                      console.log('🔄 [BUTTON] Markdown obtenido del botón, longitud:', markdown.length)
+                      console.log('🔄 [BUTTON] Primeros 200 chars:', markdown.substring(0, 200))
+                      
+                      const htmlContent = markdownToHtml(markdown)
+                      
+                      console.log('✅ [BUTTON] Conversión completada')
+                      console.log('📏 [BUTTON] HTML length:', htmlContent.length)
+                      console.log('📄 [BUTTON] Primeros 200 chars HTML:', htmlContent.substring(0, 200))
+                      
+                      handleSaveArticleWithContent(htmlContent)
+                    }}
+                    className="flex-1"
+                    size="lg"
+                  >
+                    Guardar Artículo Completo
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      sectionBySection.reset()
+                      setShowPlanner(true)
+                    }}
+                    variant="outline"
+                    size="lg"
+                  >
+                    Empezar Nuevo
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

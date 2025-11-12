@@ -7,7 +7,15 @@ export interface Step3ContentProps {
   objectivePhrase?: string
   modelId?: number
   onContentGenerated: (content: any) => void
-  onBack: () => void
+  onBack: (step3Data?: any) => void
+  initialData?: {
+    showPlanner?: boolean
+    numSections?: number
+    detailLevel?: DetailLevel
+    outline?: any[]
+    introParagraphs?: number
+    sections?: any[]
+  }
 }
 
 export type DetailLevel = 'basic' | 'medium' | 'advanced'

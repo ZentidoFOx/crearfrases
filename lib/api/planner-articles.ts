@@ -126,8 +126,13 @@ class PlannerArticlesService {
    */
   async create(articleData: PlannerArticleData): Promise<PlannerArticle> {
     try {
-      console.log('📤 Enviando datos del artículo:', articleData)
-      console.log('🌐 URL:', this.baseURL)
+      console.log('📤 [API] Enviando datos del artículo')
+      console.log('🌐 [API] URL:', this.baseURL)
+      console.log('🔍 [API] Content es HTML?')
+      console.log('   - Tiene <h2>:', articleData.content.includes('<h2>'))
+      console.log('   - Tiene <p>:', articleData.content.includes('<p>'))
+      console.log('   - Tiene ## (markdown):', articleData.content.includes('##'))
+      console.log('📄 [API] Content (primeros 300 chars):', articleData.content.substring(0, 300))
       
       const response = await fetch(this.baseURL, {
         method: 'POST',
@@ -135,7 +140,7 @@ class PlannerArticlesService {
         body: JSON.stringify(articleData)
       })
 
-      console.log('📥 Respuesta HTTP:', response.status, response.statusText)
+      console.log('📥 [API] Respuesta HTTP:', response.status, response.statusText)
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -229,6 +234,17 @@ class PlannerArticlesService {
       console.log('  - Idioma original del artículo:', originalLanguage)
       console.log('  - Datos a actualizar:', Object.keys(articleData))
       
+      // 🔍 LOGGING ESPECÍFICO PARA SEO_DATA
+      if (articleData.seo_data) {
+        console.log('🌍 [API-UPDATE] SEO_DATA detectado en la actualización:')
+        console.log('  - Tipo:', typeof articleData.seo_data)
+        console.log('  - Contenido completo:', JSON.stringify(articleData.seo_data, null, 2))
+        
+        if (typeof articleData.seo_data === 'object' && articleData.seo_data.focus_keyword) {
+          console.log('🎯 [API-UPDATE] FOCUS_KEYWORD encontrado:', articleData.seo_data.focus_keyword)
+        }
+      }
+      
       // 🛡️ PROTECCIÓN: Si se está enviando un campo 'language', debe coincidir con el original
       if (articleData.language && articleData.language !== originalLanguage) {
         const errorMsg = `⛔ [API-UPDATE] ERROR CRÍTICO: Intentando cambiar el idioma del artículo original de "${originalLanguage}" a "${articleData.language}". Esto NO está permitido. Las traducciones deben crearse con createTranslation().`
@@ -256,6 +272,29 @@ class PlannerArticlesService {
 
       const result = await response.json()
       console.log('✅ [API-UPDATE] Artículo original actualizado correctamente')
+      
+      // 🔍 VERIFICAR QUE EL RESULTADO CONTENGA LOS DATOS ACTUALIZADOS
+      if (articleData.seo_data && result.data) {
+        console.log('🔍 [API-UPDATE] Verificando seo_data en la respuesta del backend:')
+        console.log('  - seo_data en respuesta:', result.data.seo_data ? 'SÍ' : 'NO')
+        
+        if (result.data.seo_data) {
+          const responseSeoData = typeof result.data.seo_data === 'string' 
+            ? JSON.parse(result.data.seo_data) 
+            : result.data.seo_data
+          
+          console.log('  - focus_keyword en respuesta:', responseSeoData.focus_keyword || 'NO ENCONTRADO')
+          
+          if (responseSeoData.focus_keyword !== articleData.seo_data.focus_keyword) {
+            console.error('❌ [API-UPDATE] MISMATCH: focus_keyword enviado vs recibido')
+            console.error('  - Enviado:', articleData.seo_data.focus_keyword)
+            console.error('  - Recibido:', responseSeoData.focus_keyword)
+          } else {
+            console.log('✅ [API-UPDATE] focus_keyword coincide correctamente')
+          }
+        }
+      }
+      
       return result.data
     } catch (error) {
       console.error('❌ [API-UPDATE] Error updating article:', error)
