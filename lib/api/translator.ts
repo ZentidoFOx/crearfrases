@@ -48,24 +48,26 @@ class TranslatorService {
     metaDescription: string
     slug: string
   }> {
-    const prompt = `Eres un traductor experto. Traduce estos campos a ${targetLanguageName}:
+    const prompt = `Traduce estos campos de Yoast SEO Configuration a ${targetLanguageName}:
 
 KEYWORD: ${data.keyword}
 TITLE: ${data.title}
 H1: ${data.h1Title || data.title}
 DESCRIPTION: ${data.description}
 
-INSTRUCCIONES - SOLO TRADUCIR:
-1. Traduce TODO a ${targetLanguageName}
-2. Preserva nombres propios exactos
-3. Usa gramática natural del idioma destino
-4. Devuelve en este formato:
+INSTRUCCIONES - TRADUCCIÓN DIRECTA:
+1. Traduce cada campo tal como está, sin optimizar ni mejorar
+2. Mantén el mismo significado y estructura
+3. NO agregues palabras adicionales
+4. NO cambies el enfoque o estilo
+5. Solo cambia el idioma, nada más
 
-KEYWORD: [keyword traducido]
-TITLE: [título traducido]
-H1: [título H1 traducido]
-DESCRIPTION: [descripción traducida]
-SLUG: [slug-con-guiones]`
+FORMATO DE RESPUESTA:
+KEYWORD: [traducción directa del keyword]
+TITLE: [traducción directa del título]
+H1: [traducción directa del H1]
+DESCRIPTION: [traducción directa de la descripción]
+SLUG: [slug traducido con guiones]`
 
     const response = await fetch('/api/ai/generate', {
       method: 'POST',
