@@ -159,6 +159,11 @@ class SEOOptimizerService {
       optimizedContent = optimizeForYoastSEO(optimizedContent, keyword)
       console.log('✅ [SEO-OPTIMIZER] Optimizaciones automáticas aplicadas')
       
+      // 🧹 LIMPIAR CÓDIGO MARKDOWN
+      console.log('🧹 [SEO-OPTIMIZER] Eliminando código markdown...')
+      optimizedContent = this.cleanMarkdownCode(optimizedContent)
+      console.log('✅ [SEO-OPTIMIZER] Código markdown eliminado')
+      
       // Debug: verificar imágenes en contenido optimizado
       const optimizedImages = optimizedContent.match(imageRegex) || []
       console.log('🖼️ [SEO-OPTIMIZER] Imágenes en contenido optimizado:', optimizedImages)
@@ -439,14 +444,69 @@ PALABRAS DE TRANSICIÓN EN ${languageName.toUpperCase()}:
 ${this.getTransitionWordsByLanguage(language).slice(0, 20).join(', ')}
 
 FORMATO DE RESPUESTA:
-Devuelve SOLO el contenido optimizado en formato Markdown, manteniendo:
+Devuelve SOLO el contenido optimizado en formato HTML limpio, manteniendo:
 - Todos los párrafos originales
 - La estructura completa
 - Los encabezados y formato
 - Las imágenes y enlaces
+- NO uses código Markdown (**texto**, ## títulos, etc.)
+- USA HTML directo (<strong>texto</strong>, <h2>título</h2>, etc.)
 
 CONTENIDO A OPTIMIZAR:
 ${content}`
+  }
+
+  /**
+   * 🧹 Limpia código markdown del contenido
+   */
+  private cleanMarkdownCode(content: string): string {
+    let cleanedContent = content
+
+    // Eliminar negritas markdown (**texto** y __texto__)
+    cleanedContent = cleanedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    cleanedContent = cleanedContent.replace(/__(.*?)__/g, '<strong>$1</strong>')
+    
+    // Eliminar cursivas markdown (*texto* y _texto_)
+    cleanedContent = cleanedContent.replace(/\*(.*?)\*/g, '<em>$1</em>')
+    cleanedContent = cleanedContent.replace(/_(.*?)_/g, '<em>$1</em>')
+    
+    // Eliminar títulos markdown (## Título)
+    cleanedContent = cleanedContent.replace(/^#{1,6}\s+(.*?)$/gm, '<h2>$1</h2>')
+    
+    // Eliminar código inline (`código`)
+    cleanedContent = cleanedContent.replace(/`([^`]+)`/g, '$1')
+    
+    // Eliminar bloques de código (```código```)
+    cleanedContent = cleanedContent.replace(/```[\s\S]*?```/g, '')
+    
+    // Eliminar listas markdown (- item, * item, + item)
+    cleanedContent = cleanedContent.replace(/^[\s]*[-\*\+]\s+(.*?)$/gm, '<p>$1</p>')
+    
+    // Eliminar listas numeradas (1. item)
+    cleanedContent = cleanedContent.replace(/^[\s]*\d+\.\s+(.*?)$/gm, '<p>$1</p>')
+    
+    // Eliminar enlaces markdown [texto](url)
+    cleanedContent = cleanedContent.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    
+    // Eliminar líneas horizontales (--- o ***)
+    cleanedContent = cleanedContent.replace(/^[\s]*[-\*]{3,}[\s]*$/gm, '')
+    
+    // Eliminar citas (> texto)
+    cleanedContent = cleanedContent.replace(/^>\s+(.*?)$/gm, '<p>$1</p>')
+    
+    // Limpiar espacios extra y líneas vacías múltiples
+    cleanedContent = cleanedContent.replace(/\n\s*\n\s*\n/g, '\n\n')
+    cleanedContent = cleanedContent.trim()
+    
+    console.log('🧹 [SEO-OPTIMIZER] Elementos markdown eliminados:', {
+      negritas: (content.match(/\*\*(.*?)\*\*/g) || []).length,
+      cursivas: (content.match(/\*(.*?)\*/g) || []).length,
+      titulos: (content.match(/^#{1,6}\s+(.*?)$/gm) || []).length,
+      codigo_inline: (content.match(/`([^`]+)`/g) || []).length,
+      listas: (content.match(/^[\s]*[-\*\+]\s+(.*?)$/gm) || []).length
+    })
+    
+    return cleanedContent
   }
 }
 
