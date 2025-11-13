@@ -4,12 +4,13 @@ import { DetailLevel, GenerationStep } from '../types'
 
 export interface OutlineSection {
   id: string
-  type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image'
+  type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image' | 'faq'
   title: string
   paragraphs: number
   words: number
   items?: number
   contentType?: 'paragraphs' | 'list' | 'numbered-list' // Tipo de contenido para encabezados
+  faqType?: 'ol' | 'ul' // Tipo de lista para FAQs
 }
 
 /**

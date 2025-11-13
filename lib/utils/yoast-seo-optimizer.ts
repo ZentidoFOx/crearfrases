@@ -34,17 +34,37 @@ export const TRANSITION_WORDS = [
   'para resumir', 'dicho de otro modo', 'en otras palabras', 'brevemente'
 ]
 
-// Palabras clave que deben estar en negrita
+// Palabras clave que se pueden poner en negrita SI YA EXISTEN en el contenido
 export const KEYWORDS_TO_BOLD = [
-  'importante', 'esencial', 'fundamental', 'clave', 'principal', 'básico',
-  'necesario', 'recomendado', 'mejor', 'óptimo', 'ideal', 'perfecto',
-  'efectivo', 'útil', 'práctico', 'fácil', 'simple', 'rápido'
+  'mejor', 'útil', 'práctico', 'fácil', 'simple', 'rápido'
 ]
 
 /**
+ * Detecta si el contenido es una FAQ manual que no debe ser modificada
+ */
+function isManualFAQContent(content: string): boolean {
+  // Detectar patrones típicos de FAQs manuales
+  const faqPatterns = [
+    /^##?\s+.*[Pp]reguntas?\s+[Ff]recuentes?/m, // Títulos de FAQ
+    /^##?\s+.*FAQ/m, // Títulos con FAQ
+    /^\s*[-*]\s*¿.*\?/m, // Lista de preguntas con viñetas
+    /^\s*\d+\.\s*¿.*\?/m, // Lista de preguntas numeradas
+  ]
+  
+  return faqPatterns.some(pattern => pattern.test(content))
+}
+
+/**
  * Optimiza el contenido para cumplir con los criterios de Yoast SEO
+ * EXCLUYE las FAQs manuales de las optimizaciones automáticas
  */
 export function optimizeForYoastSEO(content: string, keyword: string): string {
+  // Si es una FAQ manual, NO aplicar optimizaciones automáticas
+  if (isManualFAQContent(content)) {
+    console.log('🔒 [YOAST-OPTIMIZER] FAQ manual detectada - SALTANDO optimizaciones automáticas')
+    return content // Retornar sin modificaciones
+  }
+
   let optimizedContent = content
 
   // 1. Agregar palabras de transición si faltan
@@ -61,8 +81,15 @@ export function optimizeForYoastSEO(content: string, keyword: string): string {
 
 /**
  * Agrega palabras de transición al contenido si no las tiene
+ * EXCLUYE las FAQs manuales
  */
 export function addTransitionWords(content: string): string {
+  // Si es una FAQ manual, NO agregar palabras de transición
+  if (isManualFAQContent(content)) {
+    console.log('🔒 [TRANSITION-WORDS] FAQ manual detectada - NO agregando palabras de transición')
+    return content
+  }
+
   const paragraphs = content.split('\n\n')
   const optimizedParagraphs: string[] = []
   
@@ -121,8 +148,15 @@ function selectTransitionWord(paragraphIndex: number, totalParagraphs: number): 
 
 /**
  * Acorta oraciones que excedan 20 palabras
+ * EXCLUYE las FAQs manuales
  */
 export function shortenLongSentences(content: string): string {
+  // Si es una FAQ manual, NO acortar oraciones
+  if (isManualFAQContent(content)) {
+    console.log('🔒 [SHORTEN-SENTENCES] FAQ manual detectada - NO acortando oraciones')
+    return content
+  }
+
   const paragraphs = content.split('\n\n')
   const optimizedParagraphs: string[] = []
   
@@ -196,8 +230,15 @@ function splitLongSentence(sentence: string): string[] {
 
 /**
  * Agrega negritas a palabras clave importantes y al keyword principal
+ * EXCLUYE las FAQs manuales
  */
 export function addBoldToKeywords(content: string, keyword: string): string {
+  // Si es una FAQ manual, NO agregar negritas automáticas
+  if (isManualFAQContent(content)) {
+    console.log('🔒 [BOLD-KEYWORDS] FAQ manual detectada - NO agregando negritas automáticas')
+    return content
+  }
+
   let optimizedContent = content
   
   // 1. Poner en negrita el keyword principal (primera aparición en cada párrafo)
@@ -219,17 +260,26 @@ export function addBoldToKeywords(content: string, keyword: string): string {
     optimizedContent = processedParagraphs.join('\n\n')
   }
   
-  // 2. Poner en negrita palabras clave importantes (máximo 2-3 por párrafo)
-  for (const keywordToBold of KEYWORDS_TO_BOLD) {
-    const regex = new RegExp(`\\b${keywordToBold}\\b`, 'gi')
-    optimizedContent = optimizedContent.replace(regex, (match) => {
-      // No poner en negrita si ya está en negrita
-      if (optimizedContent.includes(`**${match}**`)) {
-        return match
+  // 2. Poner en negrita palabras clave importantes SOLO SI YA EXISTEN (máximo 2-3 por párrafo)
+  const paragraphs = optimizedContent.split('\n\n')
+  const processedParagraphs = paragraphs.map(paragraph => {
+    let boldCount = (paragraph.match(/\*\*[^*]+\*\*/g) || []).length
+    
+    for (const keywordToBold of KEYWORDS_TO_BOLD) {
+      if (boldCount >= 3) break // Máximo 3 negritas por párrafo
+      
+      const regex = new RegExp(`\\b${keywordToBold}\\b`, 'gi')
+      if (paragraph.includes(keywordToBold) && !paragraph.includes(`**${keywordToBold}**`)) {
+        paragraph = paragraph.replace(regex, (match) => {
+          boldCount++
+          return `**${match}**`
+        })
       }
-      return `**${match}**`
-    })
-  }
+    }
+    
+    return paragraph
+  })
+  optimizedContent = processedParagraphs.join('\n\n')
   
   return optimizedContent
 }
@@ -243,6 +293,9 @@ export interface YoastSEOValidation {
   longSentencesPercentage: number
   transitionWordsCount: number
   boldKeywordsCount: number
+  imageAltOk: boolean
+  imagesWithKeyword: number
+  totalImages: number
   issues: string[]
   suggestions: string[]
 }
@@ -287,12 +340,32 @@ export function validateYoastSEO(content: string, keyword: string): YoastSEOVali
     suggestions.push('Agrega negritas a palabras clave importantes para mejorar la legibilidad.')
   }
   
+  // 4. Verificar alt attributes en imágenes
+  const imageRegex = /!\[([^\]]*)\]\([^)]+\)/g
+  const images = content.match(imageRegex) || []
+  const imagesWithKeyword = images.filter(img => {
+    const altMatch = img.match(/!\[([^\]]*)\]/)
+    const altText = altMatch ? altMatch[1].toLowerCase() : ''
+    return altText.includes(keyword.toLowerCase())
+  }).length
+  
+  const totalImages = images.length
+  const imageAltOk = totalImages === 0 || imagesWithKeyword === totalImages
+  
+  if (totalImages > 0 && !imageAltOk) {
+    issues.push('Alt attributes de imágenes: Las imágenes no tienen atributos alt que reflejen el tema del texto.')
+    suggestions.push(`Agrega "${keyword}" o sinónimos a los alt tags de las imágenes relevantes.`)
+  }
+  
   return {
     hasTransitionWords,
     sentenceLengthOk,
     longSentencesPercentage,
     transitionWordsCount,
     boldKeywordsCount,
+    imageAltOk,
+    imagesWithKeyword,
+    totalImages,
     issues,
     suggestions
   }

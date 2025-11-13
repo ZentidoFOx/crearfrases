@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 
 export interface OutlineSection {
   id: string
-  type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image'
+  type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image' | 'faq'
   title: string
   paragraphs: number
   words: number
@@ -15,6 +15,11 @@ export interface OutlineSection {
   imageUrl?: string
   items?: number // Para listas
   contentType?: 'paragraphs' | 'list' | 'numbered-list' // Tipo de contenido para encabezados
+  faqType?: 'ol' | 'ul' // Tipo de lista para FAQs
+  faqHeadingLevel?: 'h2' | 'h3' // Nivel de encabezado para FAQs
+  faqItems?: string[] // Items manuales de la FAQ
+  faqBeforeText?: string // Párrafo antes de las preguntas
+  faqAfterText?: string // Párrafo después de las preguntas
 }
 
 interface OutlineEditorAdvancedProps {
@@ -195,23 +200,39 @@ export function OutlineEditorAdvanced({
         defaultParagraphs = 0
         defaultTitle = 'Nueva imagen'
         break
+      case 'faq':
+        defaultWords = 120
+        defaultParagraphs = 2
+        defaultItems = 3
+        defaultTitle = 'Preguntas Frecuentes (FAQs)'
+        break
     }
 
     const newSection: OutlineSection = {
       id: `section-${Date.now()}`,
-      type,
+      type: type === 'faq' ? 'h2' : type, // FAQs empiezan como H2 por defecto
       title: defaultTitle,
       paragraphs: defaultParagraphs,
       words: defaultWords,
       collapsed: false,
-      items: (type === 'list' || type === 'numbered-list') ? defaultItems : undefined,
-      contentType: (type === 'h2' || type === 'h3' || type === 'h4') ? 'paragraphs' : undefined
+      items: (type === 'list' || type === 'numbered-list' || type === 'faq') ? defaultItems : undefined,
+      contentType: (type === 'h2' || type === 'h3' || type === 'h4') ? 'paragraphs' : undefined,
+      faqType: type === 'faq' ? 'ul' : undefined,
+      faqHeadingLevel: type === 'faq' ? 'h2' : undefined,
+      faqItems: type === 'faq' ? ['¿Pregunta 1?', '¿Pregunta 2?', '¿Pregunta 3?'] : undefined,
+      faqBeforeText: type === 'faq' ? '' : undefined,
+      faqAfterText: type === 'faq' ? '' : undefined
     }
     onOutlineChange([...outline, newSection])
   }
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
+  const getTypeColor = (section: OutlineSection) => {
+    // Si es un FAQ, usar colores específicos de FAQ independientemente del type
+    if (section.faqHeadingLevel) {
+      return { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-700', badge: 'bg-pink-500', icon: '❓' }
+    }
+    
+    switch (section.type) {
       case 'h2': return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-500', icon: 'H2' }
       case 'h3': return { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-500', icon: 'H3' }
       case 'h4': return { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-500', icon: 'H4' }
@@ -220,6 +241,7 @@ export function OutlineEditorAdvanced({
       case 'numbered-list': return { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', badge: 'bg-indigo-500', icon: 'OL' }
       case 'quote': return { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-500', icon: '💬' }
       case 'image': return { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-500', icon: '🖼' }
+      case 'faq': return { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-700', badge: 'bg-pink-500', icon: '❓' }
       default: return { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', badge: 'bg-gray-500', icon: '?' }
     }
   }
@@ -322,7 +344,7 @@ export function OutlineEditorAdvanced({
         {/* Sections */}
         <div className="space-y-3">
           {outline.map((section, index) => {
-            const colors = getTypeColor(section.type)
+            const colors = getTypeColor(section)
             const indentation = section.type === 'h2' ? 0 : section.type === 'h3' ? 24 : 48
             
             // Check if this section should be hidden (it's a child of a collapsed H2)
@@ -372,8 +394,15 @@ export function OutlineEditorAdvanced({
                   </div>
 
                   {/* Type Badge */}
-                  <div className={`flex-shrink-0 min-w-8 h-6 px-2 ${colors.bg} ${colors.text} rounded flex items-center justify-center font-bold text-xs border ${colors.border}`}>
-                    {colors.icon}
+                  <div className={`flex-shrink-0 ${section.faqHeadingLevel ? 'min-w-12' : 'min-w-8'} h-6 px-2 ${colors.bg} ${colors.text} rounded flex items-center justify-center font-bold text-xs border ${colors.border}`}>
+                    {section.faqHeadingLevel ? (
+                      <span className="flex items-center gap-1">
+                        {colors.icon}
+                        <span className="text-xs font-bold">{section.faqHeadingLevel?.toUpperCase()}</span>
+                      </span>
+                    ) : (
+                      colors.icon
+                    )}
                   </div>
 
                   {/* Title */}
@@ -438,8 +467,8 @@ export function OutlineEditorAdvanced({
                 {/* Details (when not collapsed) */}
                 {!section.collapsed && section.type !== 'image' && (
                   <div className="px-4 pb-3 space-y-3">
-                    {/* Selector de tipo de contenido para encabezados */}
-                    {(section.type === 'h2' || section.type === 'h3' || section.type === 'h4') && (
+                    {/* Selector de tipo de contenido para encabezados (excluir FAQs) */}
+                    {(section.type === 'h2' || section.type === 'h3' || section.type === 'h4') && !section.faqHeadingLevel && (
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-gray-600 font-semibold">Contenido:</span>
                         <select
@@ -456,9 +485,9 @@ export function OutlineEditorAdvanced({
 
                     {/* Controles según el tipo de contenido */}
                     <div className="flex items-center gap-4 text-xs flex-wrap">
-                    {/* Listas: mostrar número de items */}
+                    {/* Listas: mostrar número de items (excluir FAQs) */}
                     {((section.type === 'list' || section.type === 'numbered-list') || 
-                      (section.contentType === 'list' || section.contentType === 'numbered-list')) ? (
+                      (section.contentType === 'list' || section.contentType === 'numbered-list')) && section.type !== 'faq' ? (
                       <>
                         <div className="flex items-center gap-2">
                           <span className="text-gray-500">📝</span>
@@ -489,6 +518,178 @@ export function OutlineEditorAdvanced({
                             className="w-20 h-7 text-center"
                           />
                           <span className="text-gray-600">palabras/item</span>
+                        </div>
+                      </>
+                    ) : section.faqHeadingLevel ? (
+                      <>
+                        {/* Configuración completa para FAQs */}
+                        <div className="w-full">
+                          {/* Fila de selectores - Lado a lado - PRIMERO */}
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            {/* Selector de nivel de encabezado */}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                🏷️ Nivel de encabezado
+                              </label>
+                              <select
+                                value={section.faqHeadingLevel || 'h2'}
+                                onChange={(e) => {
+                                  const newHeadingLevel = e.target.value as 'h2' | 'h3'
+                                  const newOutline = outline.map(s => {
+                                    if (s.id === section.id) {
+                                      // Cambiar tanto el faqHeadingLevel como el type para que se reorganice
+                                      return { 
+                                        ...s, 
+                                        faqHeadingLevel: newHeadingLevel,
+                                        type: newHeadingLevel as 'h2' | 'h3' // Esto hará que se mueva en la jerarquía
+                                      }
+                                    }
+                                    return s
+                                  })
+                                  onOutlineChange(newOutline)
+                                }}
+                                className="w-full h-10 px-3 border border-gray-300 rounded-lg text-sm bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                              >
+                                <option value="h2">H2 - Encabezado principal</option>
+                                <option value="h3">H3 - Subencabezado</option>
+                              </select>
+                            </div>
+
+                            {/* Selector de tipo de lista */}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                📋 Tipo de lista
+                              </label>
+                              <select
+                                value={section.faqType || 'ul'}
+                                onChange={(e) => {
+                                  const newOutline = outline.map(s =>
+                                    s.id === section.id ? { ...s, faqType: e.target.value as 'ol' | 'ul' } : s
+                                  )
+                                  onOutlineChange(newOutline)
+                                }}
+                                className="w-full h-10 px-3 border border-gray-300 rounded-lg text-sm bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                              >
+                                <option value="ul">• Lista con viñetas</option>
+                                <option value="ol">1. Lista numerada</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Textarea antes - Ancho completo - DESPUÉS */}
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              📝 Párrafo antes de las preguntas
+                            </label>
+                            <textarea
+                              value={section.faqBeforeText || ''}
+                              onChange={(e) => {
+                                const newOutline = outline.map(s =>
+                                  s.id === section.id ? { ...s, faqBeforeText: e.target.value } : s
+                                )
+                                onOutlineChange(newOutline)
+                              }}
+                              className="w-full h-20 px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 bg-white"
+                              placeholder="Escribe el párrafo introductorio que aparecerá antes de las preguntas..."
+                            />
+                          </div>
+
+                          {/* Lista de preguntas editables */}
+                          <div className="mb-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <label className="text-sm font-medium text-gray-700">
+                                ❓ Preguntas frecuentes
+                              </label>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const newOutline = outline.map(s => {
+                                    if (s.id === section.id) {
+                                      const currentItems = s.faqItems || []
+                                      return { 
+                                        ...s, 
+                                        faqItems: [...currentItems, `¿Nueva pregunta ${currentItems.length + 1}?`]
+                                      }
+                                    }
+                                    return s
+                                  })
+                                  onOutlineChange(newOutline)
+                                }}
+                                className="h-8 px-3 text-sm border-pink-300 text-pink-700 hover:bg-pink-50 font-medium"
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                Agregar pregunta
+                              </Button>
+                            </div>
+                            
+                            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
+                              {(section.faqItems || []).map((item, index) => (
+                                <div key={index} className="flex items-center gap-2 bg-white p-2 rounded border">
+                                  <span className="text-sm text-gray-500 font-medium min-w-[20px]">
+                                    {section.faqType === 'ol' ? `${index + 1}.` : '•'}
+                                  </span>
+                                  <Input
+                                    value={item}
+                                    onChange={(e) => {
+                                      const newOutline = outline.map(s => {
+                                        if (s.id === section.id) {
+                                          const newItems = [...(s.faqItems || [])]
+                                          newItems[index] = e.target.value
+                                          return { ...s, faqItems: newItems }
+                                        }
+                                        return s
+                                      })
+                                      onOutlineChange(newOutline)
+                                    }}
+                                    className="h-9 text-sm flex-1 border-gray-300 focus:border-pink-500 focus:ring-pink-500"
+                                    placeholder="¿Escribe tu pregunta aquí?"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      const newOutline = outline.map(s => {
+                                        if (s.id === section.id) {
+                                          const newItems = [...(s.faqItems || [])]
+                                          newItems.splice(index, 1)
+                                          return { ...s, faqItems: newItems }
+                                        }
+                                        return s
+                                      })
+                                      onOutlineChange(newOutline)
+                                    }}
+                                    className="h-9 w-9 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                              {(!section.faqItems || section.faqItems.length === 0) && (
+                                <div className="text-center py-4 text-gray-500 text-sm">
+                                  No hay preguntas. Haz clic en "Agregar pregunta" para comenzar.
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Textarea después - Ancho completo */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              📝 Párrafo después de las preguntas
+                            </label>
+                            <textarea
+                              value={section.faqAfterText || ''}
+                              onChange={(e) => {
+                                const newOutline = outline.map(s =>
+                                  s.id === section.id ? { ...s, faqAfterText: e.target.value } : s
+                                )
+                                onOutlineChange(newOutline)
+                              }}
+                              className="w-full h-20 px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 bg-white"
+                              placeholder="Escribe el párrafo de conclusión que aparecerá después de las preguntas..."
+                            />
+                          </div>
                         </div>
                       </>
                     ) : (
@@ -601,6 +802,15 @@ export function OutlineEditorAdvanced({
               >
                 <Plus className="h-3 w-3 mr-1" />
                 Lista (numerada)
+              </Button>
+              <Button
+                onClick={() => addSection('faq')}
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs border-dashed border-2 border-pink-300 text-pink-700 hover:border-pink-400 hover:bg-pink-50 font-semibold"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                FAQs
               </Button>
             </div>
           </div>

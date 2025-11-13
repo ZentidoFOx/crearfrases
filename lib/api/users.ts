@@ -170,6 +170,78 @@ class UsersAPI {
 
     return this.handleResponse(response)
   }
+
+  /**
+   * Get WordPress credentials for a website
+   */
+  async getWordPressCredentials(websiteId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const response = await fetch(`${API_CONFIG.baseURL}/users/wordpress-credentials/${websiteId}`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return { success: true, data: data.data || { username: '', app_password: '', is_configured: false } }
+      } else {
+        return { success: false, error: 'Error al cargar credenciales' }
+      }
+    } catch (error) {
+      console.error('Error getting WordPress credentials:', error)
+      return { success: false, error: 'Error de conexión' }
+    }
+  }
+
+  /**
+   * Save WordPress credentials for a website
+   */
+  async saveWordPressCredentials(websiteId: number, credentials: { username: string; app_password: string }): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${API_CONFIG.baseURL}/users/wordpress-credentials/${websiteId}`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(credentials),
+      })
+
+      if (response.ok) {
+        return { success: true }
+      } else {
+        const errorData = await response.json().catch(() => null)
+        const errorMessage = typeof errorData?.error === 'string' ? errorData.error : 
+                            errorData?.message || 'Error al guardar credenciales'
+        return { success: false, error: errorMessage }
+      }
+    } catch (error) {
+      console.error('Error saving WordPress credentials:', error)
+      return { success: false, error: 'Error de conexión' }
+    }
+  }
+
+  /**
+   * Test WordPress connection with credentials
+   */
+  async testWordPressConnection(websiteId: number, credentials: { username: string; app_password: string }): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${API_CONFIG.baseURL}/users/wordpress-credentials/${websiteId}/test`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(credentials),
+      })
+
+      if (response.ok) {
+        return { success: true }
+      } else {
+        const errorData = await response.json().catch(() => null)
+        const errorMessage = typeof errorData?.error === 'string' ? errorData.error : 
+                            errorData?.message || 'Error al probar conexión'
+        return { success: false, error: errorMessage }
+      }
+    } catch (error) {
+      console.error('Error testing WordPress connection:', error)
+      return { success: false, error: 'Error de conexión' }
+    }
+  }
 }
 
 export interface AssignedWebsite {

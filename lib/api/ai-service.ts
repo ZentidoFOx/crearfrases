@@ -826,11 +826,17 @@ class AIService {
     introParagraphs: number,
     outline: Array<{
       id: string
-      type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image'
+      type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image' | 'faq'
       title: string
       paragraphs: number
       words: number
       items?: number
+      contentType?: 'paragraphs' | 'list' | 'numbered-list'
+      faqType?: 'ol' | 'ul'
+      faqHeadingLevel?: 'h2' | 'h3'
+      faqItems?: string[]
+      faqBeforeText?: string
+      faqAfterText?: string
     }>,
     modelId: number,
     onChunk: (chunk: string) => void
@@ -954,11 +960,17 @@ class AIService {
     introParagraphs: number,
     outline: Array<{
       id: string
-      type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image'
+      type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image' | 'faq'
       title: string
       paragraphs: number
       words: number
       items?: number
+      contentType?: 'paragraphs' | 'list' | 'numbered-list'
+      faqType?: 'ol' | 'ul'
+      faqHeadingLevel?: 'h2' | 'h3'
+      faqItems?: string[]
+      faqBeforeText?: string
+      faqAfterText?: string
     }>,
     modelId: number
   ): Promise<{
@@ -1029,22 +1041,32 @@ class AIService {
     keyword: string,
     sectionOutline: {
       id: string
-      type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image'
+      type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image' | 'faq'
       title: string
       paragraphs: number
       words: number
       items?: number
       contentType?: 'paragraphs' | 'list' | 'numbered-list'
+      faqType?: 'ol' | 'ul'
+      faqHeadingLevel?: 'h2' | 'h3'
+      faqItems?: string[]
+      faqBeforeText?: string
+      faqAfterText?: string
     },
     previousContext: string,
     modelId: number,
     subsections?: Array<{
-      type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image'
+      type: 'h2' | 'h3' | 'h4' | 'paragraph' | 'list' | 'numbered-list' | 'quote' | 'image' | 'faq'
       title: string
       paragraphs: number
       words: number
       items?: number
       contentType?: 'paragraphs' | 'list' | 'numbered-list'
+      faqType?: 'ol' | 'ul'
+      faqHeadingLevel?: 'h2' | 'h3'
+      faqItems?: string[]
+      faqBeforeText?: string
+      faqAfterText?: string
     }>,
     detailLevel: 'basic' | 'medium' | 'advanced' = 'medium'
   ): Promise<string> {
@@ -1107,6 +1129,7 @@ class AIService {
     // Determinar el tipo de contenido principal de la sección
     const mainContentType = sectionOutline.contentType || 'paragraphs'
     const mainHasLists = mainContentType === 'list' || mainContentType === 'numbered-list'
+    const isFAQ = sectionOutline.type === 'faq' || sectionOutline.faqHeadingLevel // Detectar FAQs manuales también
     
     // Construir estructura detallada de subsecciones para el prompt
     let subsectionsStructure = ''
@@ -1171,6 +1194,51 @@ class AIService {
         subsectionsStructure += `2. NO escribas párrafos introductorios\n`
         subsectionsStructure += `3. SOLO la lista con elementos informativos y relevantes\n`
         subsectionsStructure += `4. Cada elemento debe ser completo y detallado (${sectionOutline.words || 30}-${(sectionOutline.words || 30) + 20} palabras por elemento)\n\n`
+      }
+    } else if (isFAQ) {
+      // Verificar si es una FAQ manual (tiene faqItems configuradas)
+      if (sectionOutline.faqHeadingLevel && sectionOutline.faqItems && sectionOutline.faqItems.length > 0) {
+        // FAQ MANUAL - Generar contenido directamente sin IA
+        console.log(`🔒 [FAQ-MANUAL] Detectada FAQ manual con ${sectionOutline.faqItems.length} preguntas`)
+        
+        const headingPrefix = sectionOutline.faqHeadingLevel === 'h2' ? '## ' : '### '
+        let faqContent = `${headingPrefix}${sectionOutline.title}\n\n`
+        
+        // Agregar párrafo antes si existe
+        if (sectionOutline.faqBeforeText && sectionOutline.faqBeforeText.trim()) {
+          faqContent += `${sectionOutline.faqBeforeText.trim()}\n\n`
+        }
+        
+        // Agregar lista de preguntas
+        sectionOutline.faqItems.forEach((question, idx) => {
+          if (sectionOutline.faqType === 'ol') {
+            faqContent += `${idx + 1}. ${question}\n`
+          } else {
+            faqContent += `- ${question}\n`
+          }
+        })
+        
+        // Agregar párrafo después si existe
+        if (sectionOutline.faqAfterText && sectionOutline.faqAfterText.trim()) {
+          faqContent += `\n${sectionOutline.faqAfterText.trim()}`
+        }
+        
+        console.log(`✅ [FAQ-MANUAL] Contenido generado directamente (${faqContent.length} caracteres)`)
+        return faqContent.trim()
+      } else {
+        // FAQ automática - usar IA
+        const faqListType = sectionOutline.faqType === 'ol' ? 'numerada (1., 2., 3.)' : 'con viñetas (-)'
+        
+        subsectionsStructure = `\n**ESTRUCTURA ESPECÍFICA PARA FAQs:**\n\n`
+        subsectionsStructure += `1. Escribe ${sectionOutline.paragraphs} párrafo(s) introductorio(s) sobre "${sectionOutline.title}"\n`
+        subsectionsStructure += `2. Incluye una lista ${faqListType} con ${sectionOutline.items || 5} preguntas frecuentes\n`
+        subsectionsStructure += `3. Cada pregunta debe ser específica y relevante al tema "${keyword}"\n`
+        subsectionsStructure += `4. Después de la lista, escribe ${sectionOutline.paragraphs} párrafo(s) de cierre/conclusión\n`
+        subsectionsStructure += `5. Estructura: Título → Párrafo intro → Lista de preguntas → Párrafo conclusión\n\n`
+        subsectionsStructure += `**FORMATO DE LAS PREGUNTAS:**\n`
+        subsectionsStructure += `- Cada pregunta debe empezar con "¿" y terminar con "?"\n`
+        subsectionsStructure += `- Las preguntas deben ser naturales y que la gente realmente haría\n`
+        subsectionsStructure += `- Relacionadas directamente con "${keyword}" y "${sectionOutline.title}"\n\n`
       }
     }
 

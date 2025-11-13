@@ -73,13 +73,31 @@ class AuthAPI {
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
-    const data = await response.json()
+    try {
+      const data = await response.json()
 
-    if (!response.ok) {
-      throw data
+      if (!response.ok) {
+        console.error('API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          data
+        })
+        throw data
+      }
+
+      return data
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        // Error parsing JSON - probably HTML error page
+        console.error('JSON Parse Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url
+        })
+        throw new Error(`Server error (${response.status}): ${response.statusText}`)
+      }
+      throw error
     }
-
-    return data
   }
 
   /**

@@ -39,6 +39,53 @@ export interface SEOOptimizationResult {
 
 class SEOOptimizerService {
   /**
+   * 🌍 Obtiene palabras de transición por idioma
+   */
+  private getTransitionWordsByLanguage(language: string): string[] {
+    const transitionWords = {
+      'es': [
+        'además', 'por ejemplo', 'sin embargo', 'por lo tanto', 'también', 'asimismo',
+        'en primer lugar', 'finalmente', 'por otra parte', 'en consecuencia',
+        'no obstante', 'en cambio', 'por el contrario', 'en resumen', 'mientras tanto',
+        'de hecho', 'en efecto', 'por supuesto', 'ciertamente', 'obviamente'
+      ],
+      'en': [
+        'furthermore', 'for example', 'however', 'therefore', 'also', 'likewise',
+        'first of all', 'finally', 'on the other hand', 'consequently',
+        'nevertheless', 'instead', 'on the contrary', 'in summary', 'meanwhile',
+        'in fact', 'indeed', 'of course', 'certainly', 'obviously', 'moreover',
+        'additionally', 'specifically', 'particularly', 'especially'
+      ],
+      'fr': [
+        'de plus', 'par exemple', 'cependant', 'par conséquent', 'aussi', 'de même',
+        'tout d\'abord', 'finalement', 'd\'autre part', 'en conséquence',
+        'néanmoins', 'au lieu de', 'au contraire', 'en résumé', 'pendant ce temps',
+        'en fait', 'en effet', 'bien sûr', 'certainement', 'évidemment'
+      ],
+      'pt': [
+        'além disso', 'por exemplo', 'no entanto', 'portanto', 'também', 'da mesma forma',
+        'em primeiro lugar', 'finalmente', 'por outro lado', 'consequentemente',
+        'não obstante', 'em vez disso', 'pelo contrário', 'em resumo', 'enquanto isso',
+        'de fato', 'com efeito', 'claro', 'certamente', 'obviamente'
+      ],
+      'it': [
+        'inoltre', 'per esempio', 'tuttavia', 'pertanto', 'anche', 'allo stesso modo',
+        'prima di tutto', 'infine', 'd\'altra parte', 'di conseguenza',
+        'tuttavia', 'invece', 'al contrario', 'in sintesi', 'nel frattempo',
+        'infatti', 'in effetti', 'ovviamente', 'certamente', 'chiaramente'
+      ],
+      'de': [
+        'außerdem', 'zum Beispiel', 'jedoch', 'daher', 'auch', 'ebenso',
+        'zunächst', 'schließlich', 'andererseits', 'folglich',
+        'dennoch', 'stattdessen', 'im Gegenteil', 'zusammenfassend', 'währenddessen',
+        'tatsächlich', 'in der Tat', 'natürlich', 'sicherlich', 'offensichtlich'
+      ]
+    }
+    
+    return transitionWords[language as keyof typeof transitionWords] || transitionWords['es']
+  }
+
+  /**
    * 🎯 OPTIMIZACIÓN COMPLETA SEO
    * Envía TODO el contenido del editor a la IA
    */
@@ -50,8 +97,13 @@ class SEOOptimizerService {
     console.log('🔑 [SEO-OPTIMIZER] Keyword:', keyword)
     console.log('📝 [SEO-OPTIMIZER] Título:', title)
     
+    // Debug: buscar imágenes en el contenido original
+    const imageRegex = /!\[([^\]]*)\]\([^)]+\)/g
+    const originalImages = content.match(imageRegex) || []
+    console.log('🖼️ [SEO-OPTIMIZER] Imágenes en contenido original:', originalImages)
+    
     // Analizar estadísticas iniciales
-    const beforeStats = this.analyzeContent(content, keyword)
+    const beforeStats = this.analyzeContent(content, keyword, language)
     console.log('📊 [SEO-OPTIMIZER] Estadísticas iniciales:', beforeStats)
     
     try {
@@ -78,8 +130,27 @@ class SEOOptimizerService {
       // Limpiar respuesta de la IA (remover explicaciones extra)
       optimizedContent = this.cleanAIResponse(optimizedContent)
       
+      // 🎯 APLICAR OPTIMIZACIONES AUTOMÁTICAS YOAST SEO (FALLBACK)
+      console.log('🔧 [SEO-OPTIMIZER] Aplicando optimizaciones automáticas Yoast SEO...')
+      const { optimizeForYoastSEO } = await import('@/lib/utils/yoast-seo-optimizer')
+      optimizedContent = optimizeForYoastSEO(optimizedContent, keyword)
+      console.log('✅ [SEO-OPTIMIZER] Optimizaciones automáticas aplicadas')
+      
+      // Debug: verificar imágenes en contenido optimizado
+      const optimizedImages = optimizedContent.match(imageRegex) || []
+      console.log('🖼️ [SEO-OPTIMIZER] Imágenes en contenido optimizado:', optimizedImages)
+      
+      // Verificar si las imágenes tienen el keyword en el alt
+      const imagesWithKeyword = optimizedImages.filter(img => {
+        const altMatch = img.match(/!\[([^\]]*)\]/)
+        const altText = altMatch ? altMatch[1].toLowerCase() : ''
+        return altText.includes(keyword.toLowerCase())
+      })
+      
+      console.log('✅ [SEO-OPTIMIZER] Imágenes con keyword en alt:', imagesWithKeyword.length, 'de', optimizedImages.length)
+      
       // Analizar estadísticas finales
-      const afterStats = this.analyzeContent(optimizedContent, keyword)
+      const afterStats = this.analyzeContent(optimizedContent, keyword, language)
       console.log('📊 [SEO-OPTIMIZER] Estadísticas finales:', afterStats)
       
       // Calcular mejoras
@@ -131,80 +202,47 @@ class SEOOptimizerService {
     metaDescription?: string,
     language: string = 'es'
   ): string {
-    return `🎯 SEO OPTIMIZER - OPTIMIZACIÓN COMPLETA DE ARTÍCULO
+    const languageNames = {
+      'es': 'español',
+      'en': 'inglés',
+      'fr': 'francés',
+      'pt': 'portugués',
+      'it': 'italiano',
+      'de': 'alemán'
+    }
+    
+    const transitionWords = this.getTransitionWordsByLanguage(language)
+    const languageName = languageNames[language as keyof typeof languageNames] || language
+    
+    return `Optimiza este contenido para Yoast SEO en ${languageName}. Mantén TODO el contenido original.
 
-⚠️ INSTRUCCIÓN CRÍTICA: Debes devolver el MISMO artículo pero OPTIMIZADO para SEO y legibilidad.
+KEYWORD: "${keyword}"
+IDIOMA: ${languageName}
 
-📋 INFORMACIÓN DEL ARTÍCULO:
-• Título: "${title}"
-• Palabra clave principal: "${keyword}"
-• Meta descripción: "${metaDescription || 'No especificada'}"
-• Idioma: ${language}
+TAREAS:
+1. Agrega palabras de transición: ${transitionWords.slice(0, 6).join(', ')}
+2. Divide oraciones largas (máximo 20 palabras cada una)
+3. Pon "${keyword}" en **negrita** 2-3 veces
+4. Si hay imágenes ![alt](url), agrega "${keyword}" en el alt
 
-📄 CONTENIDO COMPLETO A OPTIMIZAR:
+REGLAS:
+- NO cambies el significado
+- NO elimines información
+- Mantén todos los tags HTML
+- NO agregues palabras robóticas como: "importante", "esencial", "clave", "fundamental", "crucial"
+- NO fuerces palabras que no estaban en el contenido original
+- Devuelve solo el contenido optimizado
+
+CONTENIDO:
 ${content}
 
-🎯 OPTIMIZACIONES OBLIGATORIAS:
-
-1. 🔄 PALABRAS DE TRANSICIÓN (CRÍTICO):
-   - Agrega palabras de transición al inicio de párrafos
-   - Usa: "además", "por ejemplo", "sin embargo", "por lo tanto", "también", "asimismo", "en primer lugar", "finalmente"
-   - Mínimo 6-8 palabras de transición en todo el artículo
-   - Distribúyelas naturalmente
-
-2. ✂️ LONGITUD DE ORACIONES (CRÍTICO):
-   - Divide TODAS las oraciones de más de 20 palabras
-   - Usa puntos, punto y coma, y conectores
-   - Máximo 25% de oraciones pueden superar 20 palabras
-   - Mantén fluidez natural
-
-3. 🔥 KEYWORDS EN NEGRITA (IMPORTANTE):
-   - Pon "${keyword}" en **negrita** 3-4 veces
-   - Agrega negritas a palabras clave secundarias
-   - Usa: **importante**, **esencial**, **mejor**, **útil**, **recomendado**, **clave**
-   - 2-3 negritas por párrafo máximo
-
-4. 📊 OPTIMIZACIÓN SEO ADICIONAL:
-   - Mejora la densidad de keywords (1-2% del total)
-   - Agrega sinónimos de la keyword principal
-   - Optimiza la estructura de párrafos
-   - Mejora la legibilidad general
-
-🚨 REGLAS ESTRICTAS:
-
-❌ PROHIBIDO:
-• Cambiar el significado del contenido
-• Eliminar información importante
-• Modificar títulos H1, H2, H3 existentes
-• Usar palabras robóticas: "fascinante", "increíble", "asombroso"
-• Agregar contenido no relacionado
-• Cambiar el tono del artículo
-
-✅ OBLIGATORIO:
-• Mantener TODA la información original
-• Conservar la estructura HTML/Markdown
-• Mejorar solo la legibilidad y SEO
-• Usar lenguaje natural y profesional
-• Aplicar TODAS las optimizaciones mencionadas
-
-📝 FORMATO DE RESPUESTA:
-Devuelve ÚNICAMENTE el contenido optimizado, sin explicaciones adicionales, comentarios o texto extra.
-
-🔍 VERIFICACIÓN ANTES DE RESPONDER:
-- ✅ Palabras de transición agregadas en múltiples párrafos
-- ✅ Oraciones largas divididas apropiadamente  
-- ✅ "${keyword}" en negrita al menos 3 veces
-- ✅ Contenido fluye naturalmente
-- ✅ Toda la información original preservada
-- ✅ Estructura HTML/Markdown intacta
-
-OPTIMIZA EL ARTÍCULO AHORA:`
+Optimiza ahora:`
   }
   
   /**
    * 📊 Analiza el contenido y obtiene estadísticas
    */
-  private analyzeContent(content: string, keyword: string) {
+  private analyzeContent(content: string, keyword: string, language: string = 'es') {
     // Contar palabras
     const words = content.split(/\s+/).filter(w => w.length > 0)
     const wordCount = words.length
@@ -216,17 +254,13 @@ OPTIMIZA EL ARTÍCULO AHORA:`
       return sentenceWords.length > 20
     }).length
     
-    // Contar palabras de transición
-    const transitionWords = [
-      'además', 'por ejemplo', 'sin embargo', 'por lo tanto', 'también', 'asimismo',
-      'en primer lugar', 'finalmente', 'por otra parte', 'en consecuencia',
-      'no obstante', 'en cambio', 'por el contrario', 'en resumen'
-    ]
+    // Contar palabras de transición según el idioma
+    const transitionWords = this.getTransitionWordsByLanguage(language)
     
     let transitionCount = 0
     const lowerContent = content.toLowerCase()
     transitionWords.forEach(word => {
-      const matches = lowerContent.match(new RegExp(`\\b${word}\\b`, 'g'))
+      const matches = lowerContent.match(new RegExp(`\\b${word.toLowerCase()}\\b`, 'g'))
       if (matches) transitionCount += matches.length
     })
     

@@ -46,6 +46,7 @@ interface ArticleHeaderProps {
   onHumanize?: () => void
   optimizingReadability?: boolean
   onOptimizeReadability?: () => void
+  autoSaveIndicator?: React.ReactNode
 }
 
 export function ArticleHeader({
@@ -69,7 +70,8 @@ export function ArticleHeader({
   onGooglePreview,
   onDeleteTranslation,
   onHumanize,
-  onOptimizeReadability
+  onOptimizeReadability,
+  autoSaveIndicator
 }: ArticleHeaderProps) {
   const router = useRouter()
   const [showTranslateModal, setShowTranslateModal] = useState(false)
@@ -464,27 +466,28 @@ export function ArticleHeader({
                 Preview
               </Button>
 
-              <Button
-                size="sm"
-                onClick={onSave}
-                disabled={saving}
-                className="h-8 px-4 text-white transition-colors"
-                style={{ backgroundColor: '#009689' }}
-                onMouseEnter={(e) => !saving && (e.currentTarget.style.backgroundColor = '#007f73')}
-                onMouseLeave={(e) => !saving && (e.currentTarget.style.backgroundColor = '#009689')}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    Guardando
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-3.5 w-3.5 mr-1.5" />
-                    Guardar
-                  </>
-                )}
-              </Button>
+              {/* SEO Optimizer para traducciones */}
+              {onOptimizeReadability && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onOptimizeReadability}
+                  disabled={optimizingReadability}
+                  className="h-8 px-4 border-purple-200 text-purple-700 hover:bg-purple-50 transition-colors"
+                >
+                  {optimizingReadability ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      Optimizando
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                      SEO Optimizer
+                    </>
+                  )}
+                </Button>
+              )}
 
               <Button
                 variant="destructive"
@@ -503,28 +506,6 @@ export function ArticleHeader({
           ) : (
             /* Botones para artículo original */
             <>
-              {onHumanize && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onHumanize}
-                  disabled={humanizing}
-                  className="h-8 px-4 border-orange-200 text-orange-700 hover:bg-orange-50"
-                >
-                  {humanizing ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                      Humanizando
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                      Humanizar
-                    </>
-                  )}
-                </Button>
-              )}
-              
               {onOptimizeReadability && (
                 <Button
                   variant="outline"
@@ -555,28 +536,6 @@ export function ArticleHeader({
               >
                 <Eye className="h-3.5 w-3.5 mr-1.5" />
                 Preview
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={onSave}
-                disabled={saving}
-                className="h-8 px-4 text-white transition-colors"
-                style={{ backgroundColor: '#009689' }}
-                onMouseEnter={(e) => !saving && (e.currentTarget.style.backgroundColor = '#007f73')}
-                onMouseLeave={(e) => !saving && (e.currentTarget.style.backgroundColor = '#009689')}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    Guardando
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-3.5 w-3.5 mr-1.5" />
-                    Guardar
-                  </>
-                )}
               </Button>
 
               {article.status === 'draft' && (

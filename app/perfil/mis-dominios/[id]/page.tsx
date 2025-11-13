@@ -21,8 +21,9 @@ import { DomainHelp } from './parts/DomainHelp'
 import { TopPerforming } from './parts/TopPerforming'
 import { ContentQuality } from './parts/ContentQuality'
 import { DetailedAnalysis } from './parts/DetailedAnalysis'
+import { WordPressCredentials } from './parts/WordPressCredentials'
 
-type TabType = 'info' | 'analytics' | 'top-performing' | 'content-quality' | 'detailed-analysis'
+type TabType = 'info' | 'analytics' | 'top-performing' | 'content-quality' | 'detailed-analysis' | 'wordpress-config'
 
 export default function MisDominiosDetailPage() {
   const { user, loading: authLoading } = useAuth()
@@ -165,7 +166,7 @@ export default function MisDominiosDetailPage() {
             {/* Left Sidebar - Navigation Tabs */}
             <div className="col-span-12 lg:col-span-3">
               <div className="bg-white rounded-lg border border-gray-200 p-4 sticky top-20">
-                <h3 className="text-sm font-bold text-gray-900 mb-3 px-2">SeccionesxD</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3 px-2">Secciones</h3>
                 <nav className="space-y-1">
                   <button
                     onClick={() => setActiveTab('info')}
@@ -225,6 +226,18 @@ export default function MisDominiosDetailPage() {
                   >
                     <BarChart3 className="h-4 w-4" />
                     Análisis Detallado
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('wordpress-config')}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'wordpress-config'
+                        ? 'bg-[#096] text-white'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Settings className="h-4 w-4" />
+                    WordPress Config
                   </button>
                 </nav>
 
@@ -307,6 +320,9 @@ export default function MisDominiosDetailPage() {
               )}
               {activeTab === 'detailed-analysis' && (
                 <DetailedAnalysis website={website} />
+              )}
+              {activeTab === 'wordpress-config' && (
+                <WordPressCredentials website={website} />
               )}
             </div>
 

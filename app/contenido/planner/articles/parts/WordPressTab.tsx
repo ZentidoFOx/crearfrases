@@ -455,11 +455,11 @@ export function WordPressTab({
         ) : (
           <Button
             variant="outline"
-            className="w-full h-11 font-semibold border-2 border-gray-300 hover:border-purple-400 hover:bg-purple-50 transition-all"
-            onClick={() => window.open(`${activeWebsite.url}/wp-admin/post.php?post=${article.wordpress_post_id}&action=edit`, '_blank')}
+            className="w-full h-11 font-semibold border-2 border-green-300 hover:border-green-400 hover:bg-green-50 transition-all"
+            onClick={onPublish}
           >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Editar en WordPress
+            <Send className="h-4 w-4 mr-2" />
+            📤 Publicar nuevamente
           </Button>
         )}
       </div>

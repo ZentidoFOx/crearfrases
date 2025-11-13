@@ -1,0 +1,233 @@
+import { useEffect } from 'react'
+import { useAutoSave } from '@/hooks/useAutoSave'
+import { plannerArticlesService, type PlannerArticle } from '@/lib/api/planner-articles'
+
+interface UseArticleAutoSaveProps {
+  article: PlannerArticle | null
+  articleId: number | null
+  editedContent: string
+  currentTranslationData: any
+  currentLanguage: string
+  loading: boolean
+  isAutoSaving: boolean
+  setIsAutoSaving: (saving: boolean) => void
+  lastSavedContentRef: React.MutableRefObject<string>
+  autoSaveTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
+  setArticle: (article: PlannerArticle | null) => void
+  setCurrentTranslationData: (data: any) => void
+}
+
+export function useArticleAutoSave({
+  article,
+  articleId,
+  editedContent,
+  currentTranslationData,
+  currentLanguage,
+  loading,
+  isAutoSaving,
+  setIsAutoSaving,
+  lastSavedContentRef,
+  autoSaveTimeoutRef,
+  setArticle,
+  setCurrentTranslationData
+}: UseArticleAutoSaveProps) {
+  
+  // Auto-guardado para artículos originales
+  const autoSaveOriginal = useAutoSave(
+    {
+      title: article?.title,
+      content: editedContent,
+      keyword: article?.keyword,
+      h1_title: article?.h1_title,
+      meta_description: article?.meta_description,
+      objective_phrase: article?.objective_phrase,
+      keywords_array: article?.keywords_array
+    },
+    {
+      delay: 2000,
+      enabled: !!article && !currentTranslationData && !loading && !!editedContent,
+      onSave: async (data) => {
+        if (!article || !articleId) return
+        
+        console.log('🔄 Auto-guardando artículo original...', {
+          contentLength: data.content?.length || 0,
+          title: data.title
+        })
+        
+        await plannerArticlesService.update(articleId, {
+          title: data.title,
+          content: data.content,
+          keyword: data.keyword,
+          h1_title: data.h1_title,
+          meta_description: data.meta_description,
+          objective_phrase: data.objective_phrase,
+          keywords_array: data.keywords_array
+        })
+      },
+      onError: (error) => {
+        console.error('❌ Error auto-guardando artículo:', error)
+      },
+      onSuccess: () => {
+        console.log('✅ Artículo auto-guardado exitosamente')
+      }
+    }
+  )
+
+  // Auto-guardado para traducciones
+  const autoSaveTranslation = useAutoSave(
+    currentTranslationData ? {
+      title: currentTranslationData.title,
+      content: editedContent,
+      keyword: currentTranslationData.keyword,
+      h1_title: currentTranslationData.h1_title,
+      meta_description: currentTranslationData.meta_description,
+      objective_phrase: currentTranslationData.objective_phrase,
+      keywords_array: currentTranslationData.keywords_array
+    } : null,
+    {
+      delay: 3000,
+      enabled: !!currentTranslationData && !loading,
+      onSave: async (data) => {
+        if (!currentTranslationData || !articleId) return
+        
+        console.log('🔄 Auto-guardando traducción...', data)
+        
+        await plannerArticlesService.updateTranslation(articleId, currentLanguage, {
+          title: data.title,
+          content: data.content,
+          keyword: data.keyword,
+          h1_title: data.h1_title,
+          meta_description: data.meta_description,
+          objective_phrase: data.objective_phrase,
+          keywords_array: data.keywords_array
+        })
+      },
+      onError: (error) => {
+        console.error('❌ Error auto-guardando traducción:', error)
+      },
+      onSuccess: () => {
+        console.log('✅ Traducción auto-guardada exitosamente')
+      }
+    }
+  )
+
+  // Auto-guardado directo para editedContent
+  useEffect(() => {
+    if (!editedContent || editedContent === lastSavedContentRef.current || !article || !articleId || isAutoSaving) {
+      return
+    }
+
+    console.log('📝 [AUTO-SAVE-DIRECT] Contenido cambió, programando guardado...', {
+      length: editedContent.length,
+      lastSavedLength: lastSavedContentRef.current.length
+    })
+
+    // Cancelar timeout anterior
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current)
+      autoSaveTimeoutRef.current = null
+    }
+
+    // Programar nuevo guardado
+    const timeout = setTimeout(async () => {
+      try {
+        setIsAutoSaving(true)
+        console.log('🔄 [AUTO-SAVE-DIRECT] Guardando contenido...')
+
+        if (currentTranslationData) {
+          // Guardar traducción
+          await plannerArticlesService.updateTranslation(articleId, currentLanguage, {
+            content: editedContent
+          })
+        } else {
+          // Guardar artículo original
+          await plannerArticlesService.update(articleId, {
+            content: editedContent
+          })
+        }
+
+        lastSavedContentRef.current = editedContent
+        console.log('✅ [AUTO-SAVE-DIRECT] Contenido guardado exitosamente')
+      } catch (error) {
+        console.error('❌ [AUTO-SAVE-DIRECT] Error guardando:', error)
+      } finally {
+        setIsAutoSaving(false)
+      }
+    }, 2000)
+
+    autoSaveTimeoutRef.current = timeout
+
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+    }
+  }, [editedContent, article, articleId, currentTranslationData, currentLanguage, isAutoSaving])
+
+  // Debug logs
+  useEffect(() => {
+    console.log('📝 [DEBUG] editedContent cambió:', {
+      length: editedContent?.length || 0,
+      preview: editedContent?.substring(0, 100) || 'vacío',
+      autoSaveEnabled: activeAutoSave ? 'sí' : 'no',
+      hasUnsavedChanges: activeAutoSave?.hasUnsavedChanges || false,
+      isSaving: activeAutoSave?.isSaving || false,
+      isAutoSaving
+    })
+  }, [editedContent, isAutoSaving])
+
+  // Listeners para actividad del usuario
+  useEffect(() => {
+    const handleUserActivity = () => {
+      if (activeAutoSave && !activeAutoSave.isSaving) {
+        console.log('👆 Actividad del usuario detectada')
+      }
+    }
+
+    const events = ['click', 'keydown', 'mousemove', 'focus', 'blur', 'input']
+    
+    events.forEach(event => {
+      document.addEventListener(event, handleUserActivity, { passive: true })
+    })
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, handleUserActivity)
+      })
+    }
+  }, [])
+
+  // Auto-save al cambiar de pestaña o cerrar ventana
+  useEffect(() => {
+    const activeAutoSave = currentTranslationData ? autoSaveTranslation : autoSaveOriginal
+    
+    const handleBeforeUnload = () => {
+      if (activeAutoSave.hasUnsavedChanges && !activeAutoSave.isSaving) {
+        activeAutoSave.forceSave()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && activeAutoSave.hasUnsavedChanges && !activeAutoSave.isSaving) {
+        activeAutoSave.forceSave()
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [currentTranslationData, autoSaveOriginal, autoSaveTranslation])
+
+  // Seleccionar el auto-save activo
+  const activeAutoSave = currentTranslationData ? autoSaveTranslation : autoSaveOriginal
+
+  return {
+    activeAutoSave,
+    autoSaveOriginal,
+    autoSaveTranslation
+  }
+}

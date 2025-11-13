@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Globe, Plus, Search, AlertCircle, Copy, Check, CheckCircle, Edit, Trash2, Power, ExternalLink, Shield, Eye, EyeOff, Loader2, Code } from 'lucide-react'
+import { Globe, Plus, Search, AlertCircle, CheckCircle, Edit, Trash2, Power, ExternalLink, Shield, Loader2, Code } from 'lucide-react'
 import { websitesService, type Website } from '@/lib/api/websites'
 import { Badge } from '@/components/ui/badge'
 
@@ -33,9 +33,7 @@ export function ProfileWebsites({ roleColors }: ProfileWebsitesProps) {
   const [editingWebsite, setEditingWebsite] = useState<Website | null>(null)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
-  const [copiedKey, setCopiedKey] = useState<number | null>(null)
   const [verifyingId, setVerifyingId] = useState<number | null>(null)
-  const [showPassword, setShowPassword] = useState<{ [key: number]: boolean }>({})
   const [verificationDetails, setVerificationDetails] = useState<any>(null)
 
   useEffect(() => {
@@ -126,18 +124,7 @@ export function ProfileWebsites({ roleColors }: ProfileWebsitesProps) {
     }
   }
 
-  const copyToClipboard = (text: string, id: number) => {
-    navigator.clipboard.writeText(text)
-    setCopiedKey(id)
-    setTimeout(() => setCopiedKey(null), 2000)
-  }
 
-  const togglePasswordVisibility = (id: number) => {
-    setShowPassword(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }))
-  }
 
   const filteredWebsites = websites.filter(w => 
     w.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -384,34 +371,9 @@ export function ProfileWebsites({ roleColors }: ProfileWebsitesProps) {
                         )}
                       </Button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 text-sm bg-white px-3 py-2 rounded border border-gray-200 font-mono overflow-x-auto">
-                        {showPassword[website.id] ? website.app_password : '•'.repeat(website.app_password.length)}
-                      </code>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => togglePasswordVisibility(website.id)}
-                        title={showPassword[website.id] ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                      >
-                        {showPassword[website.id] ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => copyToClipboard(website.app_password, website.id)}
-                        title="Copiar contraseña"
-                      >
-                        {copiedKey === website.id ? (
-                          <Check className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
+                    <div className="text-sm text-gray-600">
+                      <p><strong>Descripción:</strong> {website.description || 'Sin descripción'}</p>
+                      <p className="mt-1"><strong>URL:</strong> <a href={website.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{website.url}</a></p>
                     </div>
                   </div>
 
@@ -457,7 +419,6 @@ function WebsiteFormDialog({ open, onClose, onSubmit, website, title }: WebsiteF
   const [formData, setFormData] = useState({
     name: '',
     url: '',
-    app_password: '',
     description: '',
     is_active: true,
   })
@@ -471,7 +432,6 @@ function WebsiteFormDialog({ open, onClose, onSubmit, website, title }: WebsiteF
       setFormData({
         name: website.name,
         url: website.url,
-        app_password: website.app_password,
         description: website.description || '',
         is_active: website.is_active,
       })
@@ -479,7 +439,6 @@ function WebsiteFormDialog({ open, onClose, onSubmit, website, title }: WebsiteF
       setFormData({
         name: '',
         url: '',
-        app_password: '',
         description: '',
         is_active: true,
       })
@@ -545,19 +504,6 @@ function WebsiteFormDialog({ open, onClose, onSubmit, website, title }: WebsiteF
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="app_password">Contraseña de Aplicación *</Label>
-            <Input
-              id="app_password"
-              type="password"
-              value={formData.app_password}
-              onChange={(e) => setFormData(prev => ({ ...prev, app_password: e.target.value }))}
-              disabled={isSubmitting}
-              required
-              placeholder="Ingresa la contraseña de aplicación"
-            />
-            <p className="text-xs text-gray-500">Esta contraseña se usará para autenticar las peticiones al sitio web</p>
-          </div>
 
           <div className="space-y-2">
             <Label htmlFor="description">Descripción (opcional)</Label>
@@ -568,6 +514,21 @@ function WebsiteFormDialog({ open, onClose, onSubmit, website, title }: WebsiteF
               disabled={isSubmitting}
               placeholder="Descripción del sitio web"
             />
+          </div>
+
+          {/* Nota informativa sobre credenciales */}
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-blue-900">Credenciales de WordPress</h4>
+                <p className="text-sm text-blue-700 mt-1">
+                  Las credenciales de acceso a WordPress se configuran por separado en la sección 
+                  <strong> "Mis Dominios"</strong> para mayor seguridad. Cada usuario puede configurar 
+                  sus propias credenciales para los sitios asignados.
+                </p>
+              </div>
+            </div>
           </div>
 
           {isEditMode && (

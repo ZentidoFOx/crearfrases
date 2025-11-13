@@ -34,100 +34,117 @@ interface TranslatedData {
 class TranslatorService {
 
   /**
+   * Detectar nombres propios y términos específicos que deben preservarse
+   */
+  private detectProperNouns(keyword: string): string[] {
+    const properNouns: string[] = []
+    
+    // Lista de nombres propios comunes
+    const knownProperNouns = [
+      'Scarlett Johansson', 'Brad Pitt', 'Leonardo DiCaprio', 'Jennifer Lawrence',
+      'Netflix', 'Disney', 'Marvel', 'DC Comics', 'HBO', 'Amazon Prime',
+      'iPhone', 'Samsung', 'Google', 'Apple', 'Microsoft',
+      'PlayStation', 'Xbox', 'Nintendo', 'Steam',
+      'YouTube', 'Instagram', 'Facebook', 'Twitter', 'TikTok'
+    ]
+    
+    // Términos específicos que suelen mantenerse
+    const specificTerms = [
+      'filmes', 'anime', 'manga', 'K-pop', 'J-pop',
+      'streaming', 'podcast', 'vlog', 'blog'
+    ]
+    
+    // Detectar nombres propios conocidos
+    for (const noun of knownProperNouns) {
+      if (keyword.toLowerCase().includes(noun.toLowerCase())) {
+        properNouns.push(noun)
+      }
+    }
+    
+    // Detectar términos específicos
+    for (const term of specificTerms) {
+      if (keyword.toLowerCase().includes(term.toLowerCase())) {
+        properNouns.push(term)
+      }
+    }
+    
+    // Detectar patrones de nombres propios (palabras que empiezan con mayúscula)
+    const words = keyword.split(' ')
+    for (const word of words) {
+      if (word.length > 2 && word[0] === word[0].toUpperCase() && word.slice(1) === word.slice(1).toLowerCase()) {
+        if (!properNouns.includes(word)) {
+          properNouns.push(word)
+        }
+      }
+    }
+    
+    return properNouns
+  }
+
+  /**
+   * Validar que los nombres propios se preservaron en la traducción
+   * Permite pequeñas adaptaciones gramaticales (artículos, preposiciones)
+   */
+  private validateProperNounsPreserved(originalKeyword: string, translatedKeyword: string): boolean {
+    const properNouns = this.detectProperNouns(originalKeyword)
+    
+    for (const noun of properNouns) {
+      // Para nombres de personas, solo verificar que el nombre completo esté presente
+      if (noun.includes(' ') && noun[0] === noun[0].toUpperCase()) {
+        // Es un nombre de persona (ej: "Scarlett Johansson")
+        if (!translatedKeyword.toLowerCase().includes(noun.toLowerCase())) {
+          console.warn(`⚠️ [TRANSLATE] Nombre de persona perdido en traducción: "${noun}"`)
+          console.warn(`   Original: "${originalKeyword}"`)
+          console.warn(`   Traducido: "${translatedKeyword}"`)
+          return false
+        }
+      } else {
+        // Para otros términos, verificar presencia exacta
+        if (!translatedKeyword.toLowerCase().includes(noun.toLowerCase())) {
+          console.warn(`⚠️ [TRANSLATE] Término específico perdido en traducción: "${noun}"`)
+          console.warn(`   Original: "${originalKeyword}"`)
+          console.warn(`   Traducido: "${translatedKeyword}"`)
+          return false
+        }
+      }
+    }
+    
+    return true
+  }
+
+  /**
    * Construir prompt para traducción
    */
   private buildTranslationPrompt(
     data: TranslationData,
     targetLanguageName: string
   ): string {
-    return `Eres un traductor profesional experto en SEO y contenido web.
+    return `Traduce este artículo completo a ${targetLanguageName}.
 
-Tu tarea es traducir el siguiente artículo completo a ${targetLanguageName}, manteniendo:
-- La estructura HTML/Markdown exacta
-- Todos los encabezados (##, ###, <h2>, <h3>)
-- Las negritas (**texto**, <strong>)
-- Los enlaces y formato
-- El tono y estilo profesional
-- EL SEO OPTIMIZADO PARA ${targetLanguageName}
-
-**DATOS ORIGINALES:**
+DATOS ORIGINALES:
 TITLE: ${data.title}
 SEO_TITLE: ${data.seoTitle || data.title}
 H1: ${data.h1Title || data.title}
 DESCRIPTION: ${data.description}
-🎯 FOCUS KEYWORD (PRINCIPAL): ${data.keyword}
-OBJECTIVE: ${data.objectivePhrase || ''}
-KEYWORDS: ${(data.keywords || []).join(', ')}
-RELATED_KEYWORDS: ${(data.relatedKeywords || []).join(', ')}
+KEYWORD: ${data.keyword}
 SLUG: ${data.slug || ''}
 
 CONTENT:
 ${data.content}
 
-**INSTRUCCIONES CRÍTICAS SOBRE EL FOCUS KEYWORD:**
+INSTRUCCIONES:
+1. Traduce TODO a ${targetLanguageName}
+2. Mantén el formato HTML/Markdown exacto
+3. Devuelve en este formato:
 
-🚨🚨🚨 EXTREMADAMENTE IMPORTANTE 🚨🚨🚨
-
-El FOCUS KEYWORD original en español es: "${data.keyword}"
-
-DEBES traducir este keyword a ${targetLanguageName} y devolverlo en el campo KEYWORD:
-
-⚠️ OBLIGATORIO: Debes incluir esta línea EXACTA en tu respuesta:
-KEYWORD: [traducción del keyword a ${targetLanguageName}]
-
-Ejemplo: Si el keyword es "mejores lugares para pescar" y traduces a inglés:
-KEYWORD: best places to fish
-
-1. Traduce este keyword a ${targetLanguageName} usando el término MÁS BUSCADO y NATURAL
-2. Este keyword traducido DEBE aparecer OBLIGATORIAMENTE en:
-   • KEYWORD: (campo principal - OBLIGATORIO)
-   • SEO_TITLE (al inicio o al final del título)
-   • TITLE (incluido de forma natural)
-   • H1 (incluido de forma natural)
-   • DESCRIPTION (al menos 1 vez)
-   • CONTENT (distribuido naturalmente 5-7 veces en el artículo)
-   • SLUG (como parte de la URL)
-
-**EJEMPLO CORRECTO:**
-Si el keyword original es "mejores lugares para pescar en amazonas"
-Y el idioma destino es Inglés:
-
-KEYWORD traducido: "best places to fish in amazon"
-
-Entonces DEBES incluirlo en:
-- SEO_TITLE: "Best Places to Fish in Amazon: Top 5 Destinations 2024"
-- TITLE: "Best Places to Fish in Amazon"
-- H1: "Discover the Best Places to Fish in Amazon"
-- DESCRIPTION: "Find the best places to fish in Amazon. Our guide reveals..."
-- SLUG: "best-places-to-fish-in-amazon"
-- CONTENT: Aparece 5-7 veces distribuido naturalmente en el texto
-
-**INSTRUCCIONES GENERALES:**
-1. Traduce TODO a ${targetLanguageName} manteniendo el SEO
-2. Mantén EXACTAMENTE el mismo formato HTML/Markdown
-3. SEO_TITLE debe ser atractivo e incluir el FOCUS KEYWORD traducido
-4. KEYWORD debe ser la traducción natural del keyword original
-5. SLUG debe incluir el FOCUS KEYWORD (sin espacios, solo guiones)
-6. RELATED_KEYWORDS deben ser variaciones del FOCUS KEYWORD traducido
-
-**FORMATO DE RESPUESTA (OBLIGATORIO):**
-
-TITLE: [título traducido con FOCUS KEYWORD]
-SEO_TITLE: [título SEO con FOCUS KEYWORD traducido incluido]
-H1: [título H1 con FOCUS KEYWORD traducido incluido]
-DESCRIPTION: [meta descripción con FOCUS KEYWORD traducido incluido]
-KEYWORD: [FOCUS KEYWORD traducido - el más buscado en ${targetLanguageName}]
-OBJECTIVE: [frase objetivo traducida]
-KEYWORDS: [keywords traducidas separadas por comas]
-RELATED_KEYWORDS: [variaciones del FOCUS KEYWORD en ${targetLanguageName} separadas por comas]
-SLUG: [slug-con-focus-keyword-traducido]
+TITLE: [título traducido]
+SEO_TITLE: [título SEO traducido]
+H1: [título H1 traducido]
+DESCRIPTION: [descripción traducida]
+KEYWORD: [keyword traducido]
+SLUG: [slug-traducido]
 CONTENT:
-[contenido completo traducido con FOCUS KEYWORD distribuido naturalmente 5-7 veces]
-
-**IMPORTANTE:** 
-- Responde ÚNICAMENTE con el formato especificado
-- ASEGÚRATE de que el FOCUS KEYWORD traducido aparezca en TODOS los lugares indicados
-- NO inventes keywords diferentes, traduce SIEMPRE el keyword original`
+[contenido HTML traducido]`
   }
 
   /**
@@ -145,25 +162,24 @@ CONTENT:
     metaDescription: string
     slug: string
   }> {
-    const prompt = `Traduce ÚNICAMENTE estos campos SEO a ${targetLanguageName}:
+    const prompt = `Traduce estos campos SEO a ${targetLanguageName}:
 
-KEYWORD ORIGINAL: ${data.keyword}
-TITLE ORIGINAL: ${data.title}
-H1 ORIGINAL: ${data.h1Title || data.title}
-META DESCRIPTION ORIGINAL: ${data.description}
+KEYWORD: ${data.keyword}
+TITLE: ${data.title}
+H1: ${data.h1Title || data.title}
+DESCRIPTION: ${data.description}
 
-INSTRUCCIONES:
-1. KEYWORD debe ser el término más buscado en ${targetLanguageName}
-2. Todos los campos deben incluir el KEYWORD traducido
-3. Responde SOLO en este formato:
+REGLAS:
+- Preserva nombres propios (personas, marcas)
+- Permite adaptaciones gramaticales naturales
+- Traduce solo palabras genéricas
 
+FORMATO:
 KEYWORD: [keyword traducido]
-SEO_TITLE: [título SEO con keyword incluido]
-H1: [título H1 con keyword incluido]
-DESCRIPTION: [meta description con keyword incluido]
-SLUG: [url-slug-con-keyword]
-
-SIN EXPLICACIONES, SOLO LOS CAMPOS.`
+SEO_TITLE: [título SEO traducido]
+H1: [título H1 traducido]
+DESCRIPTION: [descripción traducida]
+SLUG: [slug-traducido]`
 
     const response = await fetch('/api/ai/generate', {
       method: 'POST',
@@ -208,11 +224,42 @@ SIN EXPLICACIONES, SOLO LOS CAMPOS.`
       }
     }
     
+    // Validar que los nombres propios se preservaron (permite adaptaciones gramaticales)
+    if (!this.validateProperNounsPreserved(data.keyword, keyword)) {
+      console.error('❌ [TRANSLATE-SEO] Nombres propios no preservados correctamente')
+      console.error(`   Original: "${data.keyword}"`)
+      console.error(`   Traducido: "${keyword}"`)
+      
+      // Intentar corregir automáticamente solo si realmente faltan nombres propios
+      const properNouns = this.detectProperNouns(data.keyword)
+      console.log('🔧 [TRANSLATE-SEO] Verificando nombres propios:', properNouns)
+      
+      // Solo usar fallback si realmente se perdieron nombres de personas o marcas importantes
+      let shouldUseFallback = false
+      for (const noun of properNouns) {
+        if (noun.includes(' ') && noun[0] === noun[0].toUpperCase()) {
+          // Es un nombre de persona completo que debe preservarse exactamente
+          if (!keyword.toLowerCase().includes(noun.toLowerCase())) {
+            shouldUseFallback = true
+            break
+          }
+        }
+      }
+      
+      if (shouldUseFallback) {
+        console.log('🔄 [TRANSLATE-SEO] Usando keyword original como fallback para preservar nombres propios críticos')
+        keyword = data.keyword
+      } else {
+        console.log('✅ [TRANSLATE-SEO] Nombres propios preservados, adaptaciones gramaticales permitidas')
+      }
+    }
+    
     console.log('✅ [TRANSLATE-SEO] Campos SEO traducidos:', {
       keyword,
       seoTitle: seoTitle.substring(0, 50),
       h1Title: h1Title.substring(0, 50),
-      slug
+      slug,
+      properNounsPreserved: this.validateProperNounsPreserved(data.keyword, keyword)
     })
     
     return { keyword, seoTitle, h1Title, metaDescription, slug }
@@ -263,18 +310,17 @@ SIN EXPLICACIONES, SOLO LOS CAMPOS.`
       }
       
       // Construir prompt usando los campos SEO traducidos
-      const prompt = `Traduce ÚNICAMENTE el contenido HTML a ${targetLanguageName}.
+      const prompt = `Traduce este contenido HTML a ${targetLanguageName}.
 
-🚨 REGLAS ESTRICTAS:
-1. Traduce SOLO el texto dentro de los tags HTML existentes
-2. NO agregues <meta>, <title>, <head>, <body> o cualquier tag extra
-3. Mantén EXACTAMENTE la misma estructura HTML del original
-4. Incluye el keyword "${seoFields.keyword}" naturalmente 5-7 veces en el contenido
+REGLAS:
+1. Traduce SOLO el texto, mantén todos los tags HTML exactos
+2. NO agregues contenido extra
+3. NO modifiques la estructura
 
-CONTENIDO A TRADUCIR:
+CONTENIDO:
 ${data.content}
 
-RESPONDE SOLO CON EL HTML TRADUCIDO (mismo formato que el original), SIN explicaciones, SIN meta tags, SIN elementos extra.`
+Responde solo con el HTML traducido.`
       
       console.log('📝 [TRANSLATE] Prompt construido, intentando streaming...')
 
@@ -625,16 +671,26 @@ RESPONDE SOLO CON EL HTML TRADUCIDO (mismo formato que el original), SIN explica
         }
       }
 
+      // 🎯 GENERAR SLUG DESDE SEO TITLE
+      const finalSeoTitle = seoTitle || data.seoTitle || title || data.title
+      const generatedSlug = this.generateSlugFromSeoTitle(finalSeoTitle)
+      
+      console.log('🔗 [TRANSLATE-NORMAL] Generando slug desde SEO Title:', {
+        seoTitle: finalSeoTitle,
+        generatedSlug,
+        originalSlug: slug || data.slug
+      })
+
       return {
         title: title || data.title,
-        seoTitle: seoTitle || data.seoTitle || title || data.title,
+        seoTitle: finalSeoTitle,
         h1Title: h1Title || data.h1Title || data.title,
         description: description || data.description || '',
         keyword: keyword,  // ← AHORA OBLIGATORIO
         objectivePhrase: objective || data.objectivePhrase || '',
         keywords: keywords || data.keywords || [],
         relatedKeywords: relatedKeywords || data.relatedKeywords || [],
-        slug: slug || data.slug || '',
+        slug: generatedSlug, // ← GENERADO DESDE SEO TITLE
         content: translatedContent
       }
 
@@ -642,6 +698,33 @@ RESPONDE SOLO CON EL HTML TRADUCIDO (mismo formato que el original), SIN explica
       console.error('❌ [TRANSLATE-NORMAL] Error:', error)
       throw new Error(`Error al traducir: ${error.message || 'Error desconocido'}`)
     }
+  }
+
+  /**
+   * 🔗 Genera slug desde SEO Title
+   */
+  private generateSlugFromSeoTitle(seoTitle: string): string {
+    if (!seoTitle) return ''
+    
+    return seoTitle
+      .toLowerCase()
+      .trim()
+      // Remover caracteres especiales y acentos
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      // Remover caracteres que no sean letras, números o espacios
+      .replace(/[^a-z0-9\s-]/g, '')
+      // Reemplazar espacios múltiples con uno solo
+      .replace(/\s+/g, ' ')
+      .trim()
+      // Reemplazar espacios con guiones
+      .replace(/\s/g, '-')
+      // Remover guiones múltiples
+      .replace(/-+/g, '-')
+      // Remover guiones al inicio y final
+      .replace(/^-+|-+$/g, '')
+      // Limitar longitud
+      .substring(0, 100)
   }
 
   /**

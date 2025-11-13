@@ -14,7 +14,7 @@ export default function RegisterPage() {
               </svg>
             </div>
             <span className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 bg-clip-text text-transparent">
-              CrearFrases
+            Lorenzo Expeditions
             </span>
           </Link>
           

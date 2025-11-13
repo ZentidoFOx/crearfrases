@@ -17,7 +17,7 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   title: "SEO Dashboard",
-  description: "Dashboard inspirado en SEMrush",
+  description: "Dashboard",
   generator: "v0.app",
 }
 

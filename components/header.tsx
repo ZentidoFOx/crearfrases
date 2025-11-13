@@ -51,7 +51,7 @@ export function Header() {
             <div className="relative h-3 w-3 md:h-4 md:w-4 rounded-full border-2 border-white" />
           </div>
           <span className="text-base md:text-xl font-bold tracking-tight bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
-            SEMRUSH
+            LORENZOEXPEDITIONS
           </span>
         </div>
 
@@ -82,7 +82,7 @@ export function Header() {
 
         {/* Right Navigation */}
         <div className="flex items-center gap-1 md:gap-3 shrink-0 ml-auto">
-          <Button className="hidden md:flex bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 px-5 transition-all duration-200">
+          <Button className="hidden bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 px-5 transition-all duration-200">
             Actualizar
           </Button>
 
@@ -90,21 +90,21 @@ export function Header() {
 
           <Button
             variant="ghost"
-            className="hidden lg:flex text-sm text-gray-300 hover:text-white hover:bg-[#3a3a52] transition-colors px-3"
+            className="hidden text-sm text-gray-300 hover:text-white hover:bg-[#3a3a52] transition-colors px-3"
           >
             Precios
           </Button>
 
           <Button
             variant="ghost"
-            className="hidden lg:flex text-sm text-gray-300 hover:text-white hover:bg-[#3a3a52] transition-colors px-3"
+            className="hidden text-sm text-gray-300 hover:text-white hover:bg-[#3a3a52] transition-colors px-3"
           >
             Empresas
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="hidden lg:flex text-sm text-gray-300 hover:text-white hover:bg-[#3a3a52] transition-colors px-3 py-2 rounded-md focus:outline-none items-center gap-1">
+              <button className="hidden text-sm text-gray-300 hover:text-white hover:bg-[#3a3a52] transition-colors px-3 py-2 rounded-md focus:outline-none items-center gap-1">
                 Más
                 <ChevronDown className="h-4 w-4" />
               </button>
