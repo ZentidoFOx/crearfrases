@@ -205,16 +205,23 @@ export function createOptimizationHandlers(props: OptimizationHandlersProps) {
         throw new Error('No hay contenido para optimizar')
       }
 
+      // Detectar si es una traducción
+      const isTranslation = currentLanguage !== (article.language || 'es')
+      const currentLang = currentLanguage || displayArticle?.language || 'es'
+      
       console.log('🎯 [SEO-OPTIMIZER] Iniciando optimización SOLO de contenido...')
+      console.log('🌍 [SEO-OPTIMIZER] Idioma detectado:', currentLang, isTranslation ? '(TRADUCCIÓN)' : '(ORIGINAL)')
       console.log('⚠️ [SEO-OPTIMIZER] Los campos de Yoast SEO Configuration NO se modificarán')
       
-      // 🚀 USAR EL NUEVO SEO OPTIMIZER (solo contenido)
+      // 🚀 USAR EL NUEVO SEO OPTIMIZER (solo contenido) con contexto de traducción
       const result = await seoOptimizerService.optimizeArticle({
         content: htmlContent,
         keyword,
         title,
         metaDescription,
-        language: displayArticle?.language || 'es'
+        language: currentLang,
+        isTranslation: isTranslation,
+        originalLanguage: article.language || 'es'
       }, selectedHumanizeModelId || 16)
       
       if (!result.success) {

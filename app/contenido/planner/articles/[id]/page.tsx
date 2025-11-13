@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Loader2, AlertCircle, BarChart3, Target, FileText } from 'lucide-react'
+import { Loader2, AlertCircle, BarChart3, Target, FileText, Sparkles } from 'lucide-react'
 import { CircularProgress } from '@/components/ui/circular-progress'
 import { Header } from '@/components/header'
 import { Sidebar } from '@/components/sidebar'
@@ -204,6 +204,39 @@ export default function ArticleEditorPage() {
                     <Skeleton className="h-4 w-4/5" />
                     <Skeleton className="h-4 w-full" />
                     <Skeleton className="h-4 w-2/3" />
+                  </div>
+                ) : displayArticle?.needsTranslation ? (
+                  <div className="min-h-[600px] flex items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg">
+                    <div className="text-center p-8">
+                      <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                        Contenido no traducido
+                      </h3>
+                      <p className="text-gray-500 mb-6 max-w-md">
+                        Este artículo aún no ha sido traducido a este idioma. 
+                        Haz clic en el botón de abajo para crear la traducción.
+                      </p>
+                      
+                      {/* Botón Traducir específico para el idioma */}
+                      <button
+                        onClick={() => {
+                          const currentLang = languagesHook.languages.find((l: any) => l.code === articleState.currentLanguage)
+                          if (currentLang) {
+                            console.log('🚀 [EDITOR-EMPTY] Iniciando traducción para:', currentLang.code, currentLang.name)
+                            translationHandlers.handleTranslate(currentLang.code)
+                          }
+                        }}
+                        className="mb-4 flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg transform hover:scale-105"
+                      >
+                        <Sparkles className="h-5 w-5" />
+                        Traducir a {languagesHook.languages.find((l: any) => l.code === articleState.currentLanguage)?.name || articleState.currentLanguage}
+                      </button>
+                      
+                      <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                        <Target className="h-4 w-4" />
+                        <span>Idioma seleccionado: {languagesHook.languages.find((l: any) => l.code === articleState.currentLanguage)?.name || articleState.currentLanguage}</span>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <WysiwygEditor

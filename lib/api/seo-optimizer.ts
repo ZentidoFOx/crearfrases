@@ -11,6 +11,8 @@ export interface SEOOptimizationRequest {
   title: string
   metaDescription?: string
   language?: string
+  isTranslation?: boolean
+  originalLanguage?: string
 }
 
 export interface SEOOptimizationResult {
@@ -126,8 +128,10 @@ class SEOOptimizerService {
     console.log('📊 [SEO-OPTIMIZER] Estadísticas iniciales:', beforeStats)
     
     try {
-      // Construir prompt de optimización SEO
-      const prompt = this.buildSEOPrompt(content, keyword, title, metaDescription, language)
+      // Construir prompt de optimización SEO (diferente para traducciones)
+      const prompt = request.isTranslation 
+        ? this.buildTranslationSEOPrompt(content, keyword, title, metaDescription, language, request.originalLanguage)
+        : this.buildSEOPrompt(content, keyword, title, metaDescription, language)
       
       console.log('🤖 [SEO-OPTIMIZER] Enviando artículo completo a la IA...')
       console.log('📏 [SEO-OPTIMIZER] Tamaño del prompt:', prompt.length, 'caracteres')
@@ -369,6 +373,80 @@ Optimiza ahora:`
     if (after.boldKeywords > before.boldKeywords) issuesFixed++
     
     return issuesFixed
+  }
+
+  /**
+   * 🌍 Construye el prompt específico para optimización SEO de TRADUCCIONES
+   * Enfoque más conservador que preserva la estructura y contexto
+   */
+  private buildTranslationSEOPrompt(
+    content: string,
+    keyword: string,
+    title: string,
+    metaDescription?: string,
+    language: string = 'es',
+    originalLanguage: string = 'es'
+  ): string {
+    const languageNames = {
+      'es': 'español',
+      'en': 'inglés', 
+      'fr': 'francés',
+      'pt': 'portugués',
+      'it': 'italiano',
+      'de': 'alemán'
+    }
+    
+    const languageName = languageNames[language as keyof typeof languageNames] || language
+    const originalLangName = languageNames[originalLanguage as keyof typeof languageNames] || originalLanguage
+    
+    return `Optimiza CUIDADOSAMENTE este contenido traducido para SEO en ${languageName}. 
+
+🚨 IMPORTANTE: Este es contenido TRADUCIDO de ${originalLangName} a ${languageName}. 
+PRESERVA la estructura, párrafos y contexto original. NO juntes párrafos ni reduzcas contenido.
+
+KEYWORD: "${keyword}"
+IDIOMA: ${languageName}
+CONTENIDO TRADUCIDO: ${originalLangName} → ${languageName}
+
+TAREAS ESPECÍFICAS PARA TRADUCCIONES:
+
+1. 🔒 PRESERVAR ESTRUCTURA:
+   - Mantén TODOS los párrafos separados
+   - NO juntes párrafos diferentes
+   - Conserva la longitud y profundidad del contenido
+   - Respeta los saltos de línea y espaciado
+
+2. 📝 OPTIMIZACIÓN SUAVE:
+   - Agrega palabras de transición naturales en ${languageName}
+   - Mejora la fluidez SIN cambiar el significado
+   - Usa sinónimos apropiados para el idioma
+   - Mantén el tono y estilo original
+
+3. 🎯 SEO EN ${languageName.toUpperCase()}:
+   - Incluye la keyword "${keyword}" naturalmente
+   - Usa palabras de transición apropiadas para ${languageName}
+   - Mejora la legibilidad sin alterar la estructura
+   - Mantén la densidad de keywords apropiada
+
+4. ⚠️ PROHIBIDO:
+   - NO juntar párrafos separados
+   - NO reducir la cantidad de contenido
+   - NO cambiar el orden de las ideas
+   - NO alterar el contexto o significado
+   - NO eliminar información importante
+
+PALABRAS DE TRANSICIÓN EN ${languageName.toUpperCase()}:
+${this.getTransitionWordsByLanguage(language).slice(0, 20).join(', ')}
+
+FORMATO DE RESPUESTA:
+Devuelve SOLO el contenido optimizado en formato Markdown, manteniendo:
+- Todos los párrafos originales
+- La estructura completa
+- Los encabezados y formato
+- Las imágenes y enlaces
+
+CONTENIDO A OPTIMIZAR:
+${content}`
   }
 }
 

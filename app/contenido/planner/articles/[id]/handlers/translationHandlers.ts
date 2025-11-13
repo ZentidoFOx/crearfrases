@@ -30,7 +30,12 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
   } = props
 
   const handleLanguageChange = async (langCode: string) => {
-    if (!article || !articleId) return
+    console.log('🔥 [LANGUAGE] ¡FUNCIÓN LLAMADA! Cambiando a:', langCode)
+    
+    if (!article || !articleId) {
+      console.error('❌ [LANGUAGE] No hay artículo o articleId:', { article: !!article, articleId })
+      return
+    }
     
     const originalLanguage = article.language || 'es'
     
@@ -49,10 +54,23 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
       return
     }
     
-    // 🛡️ PROTECCIÓN: Verificar que la traducción existe
+    // 🛡️ VERIFICAR: Si no existe traducción, mostrar editor vacío con mensaje
     if (!article.available_languages?.includes(langCode)) {
-      alert(`⛔ Error: No existe traducción para el idioma ${langCode}. Por favor, crea la traducción primero.`)
-      console.error(`❌ [LANGUAGE] Traducción no encontrada para: ${langCode}`)
+      console.log(`📝 [LANGUAGE] No existe traducción para ${langCode}, mostrando editor vacío`)
+      setCurrentLanguage(langCode)
+      setCurrentTranslationData({
+        ...article,
+        language: langCode,
+        content: '', // Editor vacío
+        title: '',
+        h1_title: '',
+        keyword: '',
+        meta_description: '',
+        slug: '',
+        needsTranslation: true // Flag para mostrar mensaje
+      })
+      setEditedContent('')
+      setEditorKey(prev => prev + 1)
       return
     }
     
@@ -119,11 +137,20 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
       setCurrentTranslationStep('preparing')
       setTranslationProgress(10)
       
-      const htmlContent = editedContent
+      // Usar contenido editado o contenido original del artículo
+      const htmlContent = editedContent && editedContent.trim().length > 0 
+        ? editedContent 
+        : article.content
       
       if (!htmlContent || htmlContent.trim().length === 0) {
-        throw new Error('No hay contenido para traducir')
+        throw new Error('No hay contenido para traducir. El artículo original no tiene contenido.')
       }
+      
+      console.log('📝 [TRANSLATE] Contenido a traducir:', {
+        source: editedContent && editedContent.trim().length > 0 ? 'editedContent' : 'article.content',
+        length: htmlContent.length,
+        preview: htmlContent.substring(0, 100) + '...'
+      })
       
       console.log('🚀 [TRANSLATE] Iniciando traducción en 2 PASOS')
       
@@ -157,23 +184,22 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
           translationData,
           targetLangCode,
           targetLanguage.name,
-          (chunk, accumulated) => {
-            accumulatedTranslation = accumulated
-            usedStreaming = true
-            
-            // Actualizar progreso (20% a 75%)
-            const progress = Math.min(75, 20 + (accumulated.length / htmlContent.length) * 55)
-            setTranslationProgress(Math.round(progress))
-            
-            // 🔥 NUEVO: En el sistema de 2 pasos, accumulated ES directamente el HTML traducido
-            // Actualizar editor con efecto typewriter en tiempo real
-            if (accumulated && accumulated.length > 50) {
-              setEditedContent(accumulated)
-              console.log('📝 [STREAMING] Actualizando editor:', accumulated.length, 'chars')
-            }
-          },
           {
             modelId: selectedHumanizeModelId || 1,
+            onChunk: (chunk) => {
+              accumulatedTranslation += chunk
+              usedStreaming = true
+              
+              // Actualizar progreso (20% a 75%)
+              const progress = Math.min(75, 20 + (accumulatedTranslation.length / htmlContent.length) * 55)
+              setTranslationProgress(Math.round(progress))
+              
+              // Actualizar editor con efecto typewriter en tiempo real
+              if (accumulatedTranslation && accumulatedTranslation.length > 50) {
+                setEditedContent(accumulatedTranslation)
+                console.log('📝 [STREAMING] Actualizando editor:', accumulatedTranslation.length, 'chars')
+              }
+            },
             onFallbackToNormal: () => {
               console.log('⚠️ [TRANSLATE] Fallback a modo sin streaming - Mostrando skeleton')
               setIsStreamingTranslation(false)
@@ -225,8 +251,8 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
           
           translated = await translatorService.translateArticleSimple(
             article.title,
-            article.keyword,
             htmlContent,
+            article.keyword,
             targetLangCode,
             targetLanguage.name,
             selectedHumanizeModelId || 1

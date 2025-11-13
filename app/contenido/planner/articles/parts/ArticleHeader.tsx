@@ -334,113 +334,70 @@ export function ArticleHeader({
                           </div>
                         </div>
                         
-                        {/* Traducciones Existentes */}
-                        {article.available_languages?.filter((lang: string) => lang !== (article.language || 'es')).length > 0 && (
-                          <div className="mb-2.5">
-                            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider px-1.5 mb-1.5">
-                              Traducciones
-                            </div>
-                            <div className="space-y-1">
-                              {article.available_languages?.filter((lang: string) => lang !== (article.language || 'es')).map((lang: string) => {
-                                const langData = languagesHook.languages.find((l: any) => l.code === lang)
+                        {/* Todos los idiomas disponibles */}
+                        <div className="mb-2.5">
+                          <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider px-1.5 mb-1.5">
+                            Idiomas
+                          </div>
+                          <div className="space-y-1">
+                            {languagesHook.languages
+                              .filter((lang: any) => lang.code !== (article.language || 'es')) // Excluir idioma principal
+                              .map((lang: any) => {
+                                const hasTranslation = article.available_languages?.includes(lang.code)
                                 return (
                                   <div
-                                    key={lang}
+                                    key={lang.code}
                                     onClick={() => {
-                                      if (onLanguageChange) onLanguageChange(lang)
+                                      console.log('🖱️ [HEADER] Clic en idioma:', lang.code, lang.name)
+                                      if (onLanguageChange) {
+                                        console.log('🔄 [HEADER] Llamando onLanguageChange')
+                                        onLanguageChange(lang.code)
+                                      }
                                       setShowLanguageMenu(false)
                                     }}
-                                    className="flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-all border"
+                                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all border"
                                     style={{
-                                      backgroundColor: currentLanguage === lang ? 'rgba(152, 16, 250, 0.05)' : 'transparent',
-                                      borderColor: currentLanguage === lang ? '#9810fa' : 'transparent'
+                                      backgroundColor: currentLanguage === lang.code ? 'rgba(152, 16, 250, 0.05)' : 'transparent',
+                                      borderColor: currentLanguage === lang.code ? '#9810fa' : 'transparent'
                                     }}
                                     onMouseEnter={(e) => {
-                                      if (currentLanguage !== lang) {
+                                      if (currentLanguage !== lang.code) {
                                         e.currentTarget.style.backgroundColor = '#f9fafb'
                                       }
                                     }}
                                     onMouseLeave={(e) => {
-                                      if (currentLanguage !== lang) {
+                                      if (currentLanguage !== lang.code) {
                                         e.currentTarget.style.backgroundColor = 'transparent'
                                       }
                                     }}
                                   >
-                                    <div className="flex items-center gap-2.5">
-                                      {langData?.flag ? (
-                                        <img 
-                                          src={langData.flag} 
-                                          alt={langData.name} 
-                                          className="w-6 h-5 object-cover rounded shadow-sm border border-gray-200" 
-                                        />
-                                      ) : (
-                                        <div className="flex items-center justify-center w-6 h-5 rounded shadow-sm border border-gray-200" style={{ backgroundColor: '#009689' }}>
-                                          <Globe className="h-3 w-3 text-white" />
-                                        </div>
-                                      )}
-                                      <span className="font-semibold text-xs" style={{ color: '#000000' }}>
-                                        {lang.toUpperCase()}
-                                      </span>
-                                    </div>
-                                    {currentLanguage === lang && (
-                                      <Check className="h-4 w-4" style={{ color: '#9810fa' }} />
+                                    {lang.flag ? (
+                                      <img 
+                                        src={lang.flag} 
+                                        alt={lang.name} 
+                                        className="w-6 h-5 object-cover rounded shadow-sm border border-gray-200" 
+                                      />
+                                    ) : (
+                                      <div className="flex items-center justify-center w-6 h-5 bg-gray-100 rounded">
+                                        <Globe className="h-3 w-3 text-gray-400" />
+                                      </div>
                                     )}
+                                    <span className="text-xs font-medium text-gray-700">
+                                      {lang.name}
+                                    </span>
+                                    <div className="ml-auto flex items-center gap-2">
+                                      {hasTranslation && (
+                                        <div className="w-2 h-2 bg-green-500 rounded-full" title="Traducción disponible" />
+                                      )}
+                                      {currentLanguage === lang.code && (
+                                        <Check className="h-3.5 w-3.5 text-purple-600" />
+                                      )}
+                                    </div>
                                   </div>
                                 )
                               })}
-                            </div>
                           </div>
-                        )}
-                        
-                        {/* Idiomas disponibles para traducir - SOLO en idioma principal */}
-                        {!isViewingTranslation && languagesHook.languages.filter((lang: any) => !article.available_languages?.includes(lang.code)).length > 0 && (
-                          <div>
-                            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider px-1.5 mb-1.5">
-                              Traducir a
-                            </div>
-                            <div className="space-y-1">
-                              {languagesHook.languages
-                                .filter((lang: any) => !article.available_languages?.includes(lang.code))
-                                .map((lang: any) => (
-                                  <div
-                                    key={lang.code}
-                                    className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-gray-50 transition-all group"
-                                  >
-                                    <div className="flex items-center gap-2.5">
-                                      {lang.flag ? (
-                                        <img 
-                                          src={lang.flag} 
-                                          alt={lang.name} 
-                                          className="w-6 h-5 object-cover rounded shadow-sm border border-gray-200" 
-                                        />
-                                      ) : (
-                                        <div className="flex items-center justify-center w-6 h-5 bg-gray-100 rounded">
-                                          <Globe className="h-3 w-3 text-gray-400" />
-                                        </div>
-                                      )}
-                                      <span className="text-xs font-medium text-gray-700 group-hover:text-gray-900">
-                                        {lang.name}
-                                      </span>
-                                    </div>
-                                    <button
-                                      onClick={() => {
-                                        setSelectedLangToTranslate({ code: lang.code, name: lang.name })
-                                        setShowTranslateModal(true)
-                                        setShowLanguageMenu(false)
-                                      }}
-                                      className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1.5 text-white rounded-md transition-all"
-                                      style={{ backgroundColor: '#9810fa' }}
-                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#8a0ee0'}
-                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#9810fa'}
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                      Traducir
-                                    </button>
-                                  </div>
-                                ))}
-                            </div>
-                          </div>
-                        )}
+                        </div>
                       </div>
                     </>
                   )}
@@ -528,6 +485,27 @@ export function ArticleHeader({
                 </Button>
               )}
 
+              {/* Botón Generar Traducción */}
+              {languagesHook.languages.filter((lang: any) => !article.available_languages?.includes(lang.code)).length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Encontrar el primer idioma disponible para traducir
+                    const firstLang = languagesHook.languages.find((lang: any) => !article.available_languages?.includes(lang.code))
+                    if (firstLang) {
+                      console.log('🚀 [HEADER] Iniciando traducción automática para:', firstLang.code)
+                      setSelectedLangToTranslate({ code: firstLang.code, name: firstLang.name })
+                      setShowTranslateModal(true)
+                    }
+                  }}
+                  className="h-8 px-4 border-purple-200 text-purple-700 hover:bg-purple-50"
+                >
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                  Generar Traducción
+                </Button>
+              )}
+
               <Button
                 variant="outline"
                 size="sm"
@@ -560,6 +538,7 @@ export function ArticleHeader({
 
       {/* Modal de Confirmación de Traducción */}
       {showTranslateModal && selectedLangToTranslate && (
+        console.log('🎭 [MODAL] Renderizando modal para:', selectedLangToTranslate),
         <>
           {/* Overlay */}
           <div 

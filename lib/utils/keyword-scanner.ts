@@ -219,6 +219,80 @@ export function scanKeywordsInContent(
 }
 
 /**
+ * 🔧 GENERAR ALTERNATIVAS DINÁMICAS según el keyword actual
+ */
+function generateDynamicAlternatives(targetKeyword: string): string[] {
+  const keywordLower = targetKeyword.toLowerCase()
+  
+  // Alternativas genéricas que funcionan para cualquier keyword
+  const genericAlternatives = [
+    'esta actividad',
+    'esta práctica', 
+    'este tema',
+    'esta experiencia',
+    'este servicio',
+    'esta opción'
+  ]
+  
+  // Generar alternativas específicas según el tipo de keyword
+  const specificAlternatives: string[] = []
+  
+  // Detectar tipo de keyword y generar alternativas relevantes
+  if (keywordLower.includes('jaguares') || keywordLower.includes('jaguar')) {
+    specificAlternatives.push(
+      'felinos salvajes',
+      'grandes felinos',
+      'fauna silvestre',
+      'vida salvaje',
+      'avistamiento de fauna',
+      'observación de animales'
+    )
+  } else if (keywordLower.includes('netflix') || keywordLower.includes('películas') || keywordLower.includes('filmes')) {
+    specificAlternatives.push(
+      'contenido audiovisual',
+      'entretenimiento',
+      'producciones cinematográficas',
+      'streaming',
+      'plataforma de video',
+      'contenido digital'
+    )
+  } else if (keywordLower.includes('turismo') || keywordLower.includes('viaje')) {
+    specificAlternatives.push(
+      'actividad turística',
+      'experiencia de viaje',
+      'destino turístico',
+      'aventura',
+      'excursión',
+      'actividad recreativa'
+    )
+  } else if (keywordLower.includes('brasil') || keywordLower.includes('pantanal')) {
+    specificAlternatives.push(
+      'destino sudamericano',
+      'región tropical',
+      'ecosistema único',
+      'área natural',
+      'zona geográfica',
+      'territorio natural'
+    )
+  } else {
+    // Para keywords que no reconocemos, usar términos más genéricos
+    const words = targetKeyword.split(' ')
+    if (words.length > 1) {
+      // Si es una frase, usar partes de ella
+      specificAlternatives.push(
+        `actividad de ${words[words.length - 1]}`,
+        `experiencia ${words[0]}`,
+        `práctica relacionada`,
+        `tema especializado`
+      )
+    }
+  }
+  
+  // Combinar alternativas específicas y genéricas
+  return [...specificAlternatives, ...genericAlternatives].slice(0, 8) // Máximo 8 alternativas
+}
+
+/**
  * Genera instrucciones específicas para la IA basadas en el escaneo
  */
 export function generateKeywordInstructions(
@@ -230,37 +304,30 @@ export function generateKeywordInstructions(
   severity: 'allow' | 'caution' | 'prohibit'
 } {
   
-  const alternatives = [
-    'pesca amazónica', 'pescar en ríos tropicales', 'actividad pesquera',
-    'pesca fluvial', 'pesca en aguas dulces', 'pesca deportiva',
-    'esta actividad', 'esta práctica', 'este deporte acuático',
-    'turismo pesquero', 'aventura acuática', 'deporte de caña'
-  ]
+  // 🔧 GENERAR ALTERNATIVAS DINÁMICAS según el keyword actual
+  const alternatives = generateDynamicAlternatives(targetKeyword)
+  
+  // 🔧 SIMPLIFICAR INSTRUCCIONES - Solo restricciones cuando realmente sea necesario
   
   if (scanResult.forceProhibit || !scanResult.canAddMore) {
     return {
-      instruction: `🚨 PROHIBICIÓN ABSOLUTA: NO uses "${targetKeyword}" en esta sección. 
-${scanResult.detailedAnalysis}
-OBLIGATORIO: Usa SOLO sinónimos y variaciones. El límite ya se alcanzó.`,
+      instruction: `⚠️ LÍMITE ALCANZADO: Evita usar "${targetKeyword}" en esta sección. Usa sinónimos naturales.`,
       alternatives,
       severity: 'prohibit'
     }
   }
   
-  if (scanResult.maxAllowedInSection === 1 && scanResult.totalKeywords >= 3) {
+  if (scanResult.maxAllowedInSection === 1 && scanResult.totalKeywords >= 4) {
     return {
-      instruction: `⚠️ EXTREMA PRECAUCIÓN: Puedes usar "${targetKeyword}" MÁXIMO 1 vez en esta sección.
-${scanResult.detailedAnalysis}
-Usa de forma MUY natural. Después de esta sección, usa solo sinónimos.`,
+      instruction: `⚠️ PRECAUCIÓN: Usa "${targetKeyword}" máximo 1 vez de forma natural.`,
       alternatives,
       severity: 'caution'
     }
   }
   
+  // Para la mayoría de casos, permitir uso normal sin restricciones excesivas
   return {
-    instruction: `✅ PERMITIDO: Puedes usar "${targetKeyword}" máximo ${scanResult.maxAllowedInSection} vez(es).
-${scanResult.detailedAnalysis}
-Usa de forma natural y distribuida.`,
+    instruction: `✅ Usa "${targetKeyword}" de forma natural cuando sea relevante.`,
     alternatives,
     severity: 'allow'
   }

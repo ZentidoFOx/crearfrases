@@ -1307,12 +1307,10 @@ ${filteredSubsections.length > 0 ? `${mainHasLists ? '5' : '4'}. CADA subseccion
 ${filteredSubsections.length > 0 ? `${mainHasLists ? '6' : '5'}. NO omitas ninguna subseccion - Genera TODO el contenido completo` : ''}
 ${mainHasLists ? '7' : '6'}. NO inventes subsecciones adicionales - Solo las que estan listadas${!detailConfig.allowH3 ? ' (NINGUNA en nivel básico)' : ''}
 ${mainHasLists ? '8' : '7'}. RESTRICCIÓN DE LONGITUD: Genera APROXIMADAMENTE ${detailConfig.targetWords} palabras TOTAL. NO escribas más de lo necesario.
-${mainHasLists ? '9' : '8'}. **🚨 CONTROL ROBUSTO DE KEYWORD (MÁX 6 EN TODO EL ARTÍCULO):**
-   ${keywordInstructions.instruction}
-${mainHasLists ? '10' : '9'}. **🚨 ALTERNATIVAS OBLIGATORIAS:**
-   ${keywordInstructions.alternatives.slice(0, 8).map(alt => `- "${alt}"`).join('\n   ')}
-${mainHasLists ? '11' : '10'}. Escribe en español con tono profesional pero accesible, siendo CONCISO
-${mainHasLists ? '12' : '11'}. Separa SIEMPRE parrafos con doble salto de linea
+${keywordInstructions.severity === 'prohibit' || keywordInstructions.severity === 'caution' ? `${mainHasLists ? '9' : '8'}. **⚠️ CONTROL DE KEYWORD:**
+   ${keywordInstructions.instruction}` : ''}
+${keywordInstructions.severity === 'prohibit' || keywordInstructions.severity === 'caution' ? (mainHasLists ? '10' : '9') : (mainHasLists ? '9' : '8')}. Escribe en español con tono profesional pero accesible, siendo CONCISO
+${keywordInstructions.severity === 'prohibit' || keywordInstructions.severity === 'caution' ? (mainHasLists ? '11' : '10') : (mainHasLists ? '10' : '9')}. Separa SIEMPRE parrafos con doble salto de linea
 
 **FORMATO MARKDOWN ESTRICTO (react-markdown + remark-gfm + rehype-raw):**
 - USAR **Negrita** con doble asterisco (NO usar <strong>)
