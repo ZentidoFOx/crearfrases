@@ -56,7 +56,6 @@ function isManualFAQContent(content: string): boolean {
 
 /**
  * Optimiza el contenido para cumplir con los criterios de Yoast SEO
- * EXCLUYE las FAQs manuales de las optimizaciones automáticas
  */
 export function optimizeForYoastSEO(content: string, keyword: string): string {
   // Si es una FAQ manual, NO aplicar optimizaciones automáticas
@@ -65,16 +64,19 @@ export function optimizeForYoastSEO(content: string, keyword: string): string {
     return content // Retornar sin modificaciones
   }
 
+  console.log('🔧 [YOAST-OPTIMIZER] Aplicando post-procesamiento como RESPALDO para problemas no resueltos por IA')
+  
   let optimizedContent = content
 
-  // 1. Agregar palabras de transición si faltan
-  optimizedContent = addTransitionWords(optimizedContent)
-  
-  // 2. Acortar oraciones largas
+  // 1. Acortar oraciones largas si la IA no lo hizo completamente
   optimizedContent = shortenLongSentences(optimizedContent)
   
-  // 3. Agregar negritas a palabras clave importantes
+  // 2. Agregar negritas al keyword si la IA no las agregó
   optimizedContent = addBoldToKeywords(optimizedContent, keyword)
+  
+  // 3. NO agregar palabras de transición automáticas - IA las maneja mejor
+  // optimizedContent = addTransitionWords(optimizedContent)
+  console.log('🔧 [YOAST-OPTIMIZER] Palabras de transición: Solo IA las maneja')
   
   return optimizedContent
 }
@@ -239,48 +241,80 @@ export function addBoldToKeywords(content: string, keyword: string): string {
     return content
   }
 
+  console.log('🔧 [BOLD-KEYWORDS] Iniciando optimización de negritas para keyword:', keyword)
+  
   let optimizedContent = content
   
-  // 1. Poner en negrita el keyword principal (primera aparición en cada párrafo)
-  const keywordVariations = [
-    keyword,
-    keyword.toLowerCase(),
-    keyword.charAt(0).toUpperCase() + keyword.slice(1).toLowerCase()
-  ]
-  
-  for (const variation of keywordVariations) {
-    // Solo la primera aparición en cada párrafo
-    const paragraphs = optimizedContent.split('\n\n')
-    const processedParagraphs = paragraphs.map(paragraph => {
-      if (paragraph.includes(variation) && !paragraph.includes(`**${variation}**`)) {
-        return paragraph.replace(variation, `**${variation}**`)
-      }
-      return paragraph
-    })
-    optimizedContent = processedParagraphs.join('\n\n')
-  }
-  
-  // 2. Poner en negrita palabras clave importantes SOLO SI YA EXISTEN (máximo 2-3 por párrafo)
+  // 1. SOLO poner en negrita el keyword principal EXACTO (una vez por párrafo)
   const paragraphs = optimizedContent.split('\n\n')
-  const processedParagraphs = paragraphs.map(paragraph => {
+  let totalKeywordBolds = 0
+  
+  const processedParagraphs = paragraphs.map((paragraph, index) => {
+    // Saltar párrafos que son títulos (empiezan con #)
+    if (paragraph.trim().startsWith('#')) {
+      return paragraph
+    }
+    
+    // Verificar si ya tiene el keyword en negrita (HTML o Markdown)
+    if (paragraph.includes(`<strong>${keyword}</strong>`) || paragraph.includes(`**${keyword}**`)) {
+      console.log(`🔧 [BOLD-KEYWORDS] Párrafo ${index + 1}: Keyword ya en negrita`)
+      return paragraph
+    }
+    
+    // Buscar el keyword exacto (case-insensitive) pero mantener capitalización original
+    const keywordRegex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+    const match = paragraph.match(keywordRegex)
+    
+    if (match && totalKeywordBolds < 2) { // Máximo 2 keywords en negrita en todo el artículo
+      const foundKeyword = match[0] // Mantiene la capitalización original
+      const updatedParagraph = paragraph.replace(keywordRegex, `<strong>${foundKeyword}</strong>`)
+      totalKeywordBolds++
+      console.log(`🔧 [BOLD-KEYWORDS] Párrafo ${index + 1}: Agregada negrita HTML a "${foundKeyword}"`)
+      return updatedParagraph
+    }
+    
+    return paragraph
+  })
+  
+  optimizedContent = processedParagraphs.join('\n\n')
+  
+  // 2. SOLO agregar negritas a palabras que YA EXISTEN (máximo 1-2 adicionales por párrafo)
+  const finalParagraphs = optimizedContent.split('\n\n')
+  const finalProcessedParagraphs = finalParagraphs.map((paragraph, index) => {
+    // Saltar párrafos que son títulos
+    if (paragraph.trim().startsWith('#')) {
+      return paragraph
+    }
+    
+    // Contar negritas existentes en este párrafo
     let boldCount = (paragraph.match(/\*\*[^*]+\*\*/g) || []).length
     
+    // Solo agregar 1-2 negritas adicionales por párrafo si hay espacio
+    let addedInThisParagraph = 0
+    
     for (const keywordToBold of KEYWORDS_TO_BOLD) {
-      if (boldCount >= 3) break // Máximo 3 negritas por párrafo
+      if (boldCount >= 2 || addedInThisParagraph >= 1) break // Máximo 2 negritas por párrafo, 1 adicional
       
+      // Verificar que la palabra existe Y no está ya en negrita
       const regex = new RegExp(`\\b${keywordToBold}\\b`, 'gi')
-      if (paragraph.includes(keywordToBold) && !paragraph.includes(`**${keywordToBold}**`)) {
-        paragraph = paragraph.replace(regex, (match) => {
-          boldCount++
-          return `**${match}**`
-        })
+      const matches = paragraph.match(regex)
+      
+      if (matches && !paragraph.includes(`**${keywordToBold}**`)) {
+        // Solo poner en negrita la PRIMERA aparición
+        paragraph = paragraph.replace(regex, `**${matches[0]}**`)
+        boldCount++
+        addedInThisParagraph++
+        console.log(`🔧 [BOLD-KEYWORDS] Párrafo ${index + 1}: Agregada negrita adicional a "${matches[0]}"`)
+        break // Solo una palabra adicional por párrafo
       }
     }
     
     return paragraph
   })
-  optimizedContent = processedParagraphs.join('\n\n')
   
+  optimizedContent = finalProcessedParagraphs.join('\n\n')
+  
+  console.log(`✅ [BOLD-KEYWORDS] Optimización completada. Keywords en negrita: ${totalKeywordBolds}`)
   return optimizedContent
 }
 

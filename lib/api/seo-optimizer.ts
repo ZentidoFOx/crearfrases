@@ -39,15 +39,34 @@ export interface SEOOptimizationResult {
 
 class SEOOptimizerService {
   /**
-   * 🌍 Obtiene palabras de transición por idioma
+   * 🌍 Obtiene palabras de transición por idioma - LISTA COMPLETA PARA IA
    */
   private getTransitionWordsByLanguage(language: string): string[] {
     const transitionWords = {
       'es': [
-        'además', 'por ejemplo', 'sin embargo', 'por lo tanto', 'también', 'asimismo',
-        'en primer lugar', 'finalmente', 'por otra parte', 'en consecuencia',
-        'no obstante', 'en cambio', 'por el contrario', 'en resumen', 'mientras tanto',
-        'de hecho', 'en efecto', 'por supuesto', 'ciertamente', 'obviamente'
+        // Adición y continuidad
+        'además', 'también', 'asimismo', 'igualmente', 'de la misma manera', 'del mismo modo',
+        'por otra parte', 'por otro lado', 'a su vez', 'al mismo tiempo', 'paralelamente',
+        
+        // Ejemplos y aclaración
+        'por ejemplo', 'es decir', 'en otras palabras', 'dicho de otro modo', 'específicamente',
+        'particularmente', 'en concreto', 'como muestra', 'tal como', 'como se puede ver',
+        
+        // Contraste y oposición
+        'sin embargo', 'no obstante', 'por el contrario', 'en cambio', 'a diferencia de',
+        'mientras que', 'aunque', 'a pesar de', 'pese a', 'en contraste',
+        
+        // Causa y efecto
+        'por lo tanto', 'en consecuencia', 'como resultado', 'debido a', 'gracias a',
+        'por esta razón', 'por este motivo', 'de ahí que', 'así pues', 'por consiguiente',
+        
+        // Secuencia temporal
+        'en primer lugar', 'en segundo lugar', 'posteriormente', 'a continuación', 'luego',
+        'después', 'finalmente', 'por último', 'para concluir', 'mientras tanto',
+        
+        // Énfasis y confirmación
+        'de hecho', 'en efecto', 'efectivamente', 'ciertamente', 'obviamente',
+        'por supuesto', 'sin duda', 'claramente', 'evidentemente', 'indudablemente'
       ],
       'en': [
         'furthermore', 'for example', 'however', 'therefore', 'also', 'likewise',
@@ -220,17 +239,60 @@ KEYWORD: "${keyword}"
 IDIOMA: ${languageName}
 
 TAREAS:
-1. Agrega palabras de transición: ${transitionWords.slice(0, 6).join(', ')}
-2. Divide oraciones largas (máximo 20 palabras cada una)
-3. Pon "${keyword}" en **negrita** 2-3 veces
-4. Si hay imágenes ![alt](url), agrega "${keyword}" en el alt
+1. 📝 PALABRAS DE TRANSICIÓN YOAST SEO: 
+   
+   🚨 OBJETIVO CRÍTICO: Aumenta el uso de palabras de transición hasta que MÁS DEL 30% de tus frases las incluyan. Esto mejorará la fluidez del texto y te dará el semáforo verde en Yoast SEO.
+   
+   🎯 USA EXACTAMENTE ESTAS PALABRAS que Yoast SEO reconoce:
+   
+   ADICIÓN: además, asimismo, también, incluso, del mismo modo, de igual manera, igualmente, a continuación, aparte de eso, es más, cabe destacar que, por añadidura, sin olvidar que, sumado a ello
+   
+   CAUSA/EFECTO: por lo tanto, por consiguiente, en consecuencia, por eso, por esta razón, por ende, así que, de modo que, de ahí que, debido a que, dado que, por esta causa, en vista de ello, como resultado
+   
+   CONTRASTE: sin embargo, no obstante, aunque, en cambio, por otro lado, al contrario, mientras que, pese a ello, aun así, de todos modos, en oposición, en contraste, por el contrario, pero
+   
+   EJEMPLOS: por ejemplo, es decir, en otras palabras, o sea, concretamente, como muestra, tal como, específicamente, en particular, para ilustrar, dicho de otra manera
+   
+   SECUENCIA: primero, en primer lugar, luego, después, a continuación, más adelante, posteriormente, por último, finalmente, al principio, en segundo lugar, seguidamente, acto seguido
+   
+   SIMILITUD: del mismo modo, de manera similar, igualmente, así como, al igual que, tal como, de forma parecida, de igual modo
+   
+   CONCLUSIÓN: en conclusión, para concluir, en resumen, finalmente, por último, en definitiva, en síntesis, en pocas palabras, por ende, a modo de cierre, para terminar
+   
+   ÉNFASIS: sobre todo, especialmente, en especial, particularmente, cabe resaltar que, es importante destacar, lo más importante, sin duda, de hecho, ciertamente
+   
+   CONDICIÓN: si, en caso de que, siempre que, a menos que, con tal de que, mientras tanto, suponiendo que, en la medida en que
+   
+   ⚠️ CÁLCULO DEL 30%: Si tienes 20 oraciones, necesitas AL MENOS 6-7 oraciones con palabras de transición
+   ⚠️ ESTRATEGIA: Agrega palabras como "además", "sin embargo", "por lo tanto", "en conclusión", "a continuación", "finalmente" al INICIO de párrafos
+   
+   📋 EJEMPLO CORRECTO:
+   ❌ MAL (0% transición): "El Pantanal es un ecosistema único. Ofrece oportunidades de avistamiento. Los jaguares habitan aquí."
+   ✅ BIEN (>30% transición): "Además, el Pantanal es un ecosistema único. Por lo tanto, ofrece oportunidades de avistamiento. Sin embargo, los jaguares habitan aquí."
 
-REGLAS:
+2. ✂️ ORACIONES CORTAS: Divide oraciones largas (máximo 20 palabras cada una)
+
+3. 💪 NEGRITAS: Pon ÚNICAMENTE "${keyword}" en <strong>negrita</strong> exactamente 2 veces en TODO el artículo
+
+4. 🖼️ IMÁGENES: Si hay imágenes ![alt](url), agrega "${keyword}" en el alt
+
+🚨 REGLAS ABSOLUTAS PARA NEGRITAS:
+- SOLO estas 2 negritas permitidas: <strong>${keyword}</strong> y <strong>${keyword}</strong>
+- NO pongas en negrita: "mejor", "útil", "importante", "esencial", "clave", "fundamental"
+- NO pongas en negrita: "También", "Además", "Asimismo", "Por otra parte"
+- NO pongas en negrita: ninguna palabra que NO sea exactamente "${keyword}"
+- Si ves "${keyword}" ya en <strong>, NO agregues más negritas
+- TOTAL MÁXIMO: 2 negritas de "${keyword}" en todo el texto
+
+EJEMPLO CORRECTO:
+❌ MAL: Los <strong>jaguares en el Pantanal</strong> representan uno de los <strong>espectáculos</strong> más <strong>codiciados</strong> de la vida <strong>salvaje</strong>.
+✅ BIEN: Los <strong>${keyword}</strong> representan uno de los espectáculos más codiciados de la vida salvaje. Este ecosistema ofrece <strong>${keyword}</strong> únicos.
+
+REGLAS GENERALES:
 - NO cambies el significado
 - NO elimines información
 - Mantén todos los tags HTML
-- NO agregues palabras robóticas como: "importante", "esencial", "clave", "fundamental", "crucial"
-- NO fuerces palabras que no estaban en el contenido original
+- NO agregues palabras robóticas
 - Devuelve solo el contenido optimizado
 
 CONTENIDO:
