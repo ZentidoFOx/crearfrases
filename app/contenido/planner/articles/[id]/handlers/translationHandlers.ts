@@ -318,27 +318,25 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
         console.warn(`⚠️ [TRANSLATE] ADVERTENCIA: Focus Keyword solo aparece ${keywordCount} veces en el contenido (recomendado: 5-7)`)
       }
       
-      // 🔥 VERIFICAR qué keyword traducido recibimos
-      console.log('🔍 [TRANSLATE] VERIFICANDO KEYWORD RECIBIDO:')
-      console.log('  - keyword original (español):', article.keyword)
-      console.log('  - keyword traducido (IA):', translated.keyword)
-      console.log('  - ¿Son iguales?:', translated.keyword === article.keyword)
+      // 🎯 TRADUCCIÓN DIRECTA DE CAMPOS YOAST SEO CONFIGURATION
+      console.log('🎯 [TRANSLATE] TRADUCCIÓN DIRECTA DE YOAST SEO CONFIGURATION:')
+      console.log('  - Focus Keyword original:', article.keyword)
+      console.log('  - SEO Title original:', article.title)
+      console.log('  - Meta Description original:', article.meta_description)
       
-      // Si el keyword NO fue traducido (sigue igual al original), hay un problema
-      if (translated.keyword === article.keyword) {
-        console.error('❌ [TRANSLATE] ERROR CRÍTICO: La IA NO tradujo el keyword!')
-        console.error('   Se esperaba keyword en', targetLanguage.name)
-        console.error('   Pero se recibió:', translated.keyword)
-      }
-      
-      // Preparar seo_data JSON con todos los campos SEO adicionales
+      // Usar DIRECTAMENTE los campos traducidos por la IA
       const seoData = {
-        seo_title: translated.seoTitle || translated.title,
-        related_keywords: translated.relatedKeywords || [],
-        focus_keyword: translated.keyword,
-        meta_description: translated.description || article.meta_description || '',
+        focus_keyword: translated.keyword,           // Focus Keyword traducido
+        seo_title: translated.seoTitle || translated.title,  // SEO Title traducido
+        meta_description: translated.description || article.meta_description || '', // Meta Description traducida
+        related_keywords: [],                        // Vacío por defecto
         slug: translated.slug || translated.keyword.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\-]/g, '')
       }
+      
+      console.log('✅ [TRANSLATE] CAMPOS YOAST SEO TRADUCIDOS:')
+      console.log('  - Focus Keyword:', seoData.focus_keyword)
+      console.log('  - SEO Title:', seoData.seo_title)
+      console.log('  - Meta Description:', seoData.meta_description?.substring(0, 50) + '...')
       
       // Preparar datos de traducción con estructura correcta del backend
       const translationPayload = {
@@ -369,9 +367,20 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
       console.log('Content Length:', translationPayload.content?.length)
       console.log('============================================')
       
-      // Guardar traducción en BD
+      // Guardar traducción en BD (crear o sobrescribir si ya existe)
       console.log('📤 [TRANSLATE] Enviando al backend...')
-      await plannerArticlesService.createTranslation(articleId, translationPayload)
+      try {
+        await plannerArticlesService.createTranslation(articleId, translationPayload)
+        console.log('✅ [TRANSLATE] Nueva traducción creada')
+      } catch (error: any) {
+        if (error.message?.includes('Ya existe una traducción')) {
+          console.log('🔄 [TRANSLATE] Traducción ya existe, sobrescribiendo...')
+          await plannerArticlesService.updateTranslation(articleId, targetLangCode, translationPayload)
+          console.log('✅ [TRANSLATE] Traducción sobrescrita exitosamente')
+        } else {
+          throw error
+        }
+      }
       
       console.log('✅ [TRANSLATE] Traducción guardada correctamente en BD')
       

@@ -1,0 +1,30 @@
+RewriteEngine On
+
+# CORS Headers - Configuración dinámica
+<IfModule mod_headers.c>
+    # Permitir múltiples orígenes
+    SetEnvIf Origin "^https://crearfrases\.turin\.dev$" CORS_ORIGIN=$0
+    SetEnvIf Origin "^http://localhost:3000$" CORS_ORIGIN=$0
+    SetEnvIf Origin "^http://localhost:3001$" CORS_ORIGIN=$0
+    SetEnvIf Origin "^http://127\.0\.0\.1:3000$" CORS_ORIGIN=$0
+    SetEnvIf Origin "^http://127\.0\.0\.1:3001$" CORS_ORIGIN=$0
+    
+    Header always set Access-Control-Allow-Origin "%{CORS_ORIGIN}e" env=CORS_ORIGIN
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+    Header always set Access-Control-Allow-Credentials "true"
+</IfModule>
+
+# Permitir archivos PHP directos (archivos de test)
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteCond %{REQUEST_FILENAME} \.php$
+RewriteRule ^.*$ - [L]
+
+# Solo redirigir rutas API a public/index.php
+RewriteRule ^api/(.*)$ public/index.php [QSA,L]
+
+# Redirigir rutas que no son archivos ni directorios a public/index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/test-
+RewriteRule ^(.*)$ public/index.php [QSA,L]

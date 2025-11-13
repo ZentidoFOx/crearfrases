@@ -50,24 +50,43 @@ class TranslatorService {
   }> {
     const prompt = `Traduce estos campos de Yoast SEO Configuration a ${targetLanguageName}:
 
-KEYWORD: ${data.keyword}
+🎯 FOCUS KEYWORD PRINCIPAL (USAR ESTE): ${data.keyword}
 TITLE: ${data.title}
 H1: ${data.h1Title || data.title}
 DESCRIPTION: ${data.description}
 
-INSTRUCCIONES - TRADUCCIÓN DIRECTA:
-1. Traduce cada campo tal como está, sin optimizar ni mejorar
-2. Mantén el mismo significado y estructura
-3. NO agregues palabras adicionales
-4. NO cambies el enfoque o estilo
-5. Solo cambia el idioma, nada más
+🚨 IMPORTANTE: El FOCUS KEYWORD PRINCIPAL es "${data.keyword}" - ESTE es el que debes traducir y usar en todos los campos.
+
+🔒 REGLAS CRÍTICAS DE PRESERVACIÓN:
+
+1. 🎯 FOCUS KEYWORD - PRESERVAR NOMBRES PROPIOS:
+   - Si contiene nombres de personas: "Scarlett Johansson" → mantener exacto
+   - Si contiene marcas: "Netflix", "Disney", "iPhone" → mantener exactos
+   - Si contiene términos específicos: "filmes", "anime", "K-pop" → mantener exactos
+   - Solo traduce palabras genéricas: "mejores" → "best", "películas" → "movies"
+
+2. 📝 ADAPTACIONES GRAMATICALES PERMITIDAS:
+   - Puedes agregar artículos/preposiciones del idioma destino
+   - "safari de onças-pintadas no Pantanal" → "safari de onças-pintadas no Pantanal" (mantener estructura)
+   - "mejores películas Netflix" → "best Netflix movies" (reordenar si es natural)
+
+3. 🚫 PROHIBIDO:
+   - Cambiar nombres de personas: "Scarlett Johansson" → "Scarlett Johnson" ❌
+   - Traducir marcas: "Netflix" → "Red de Películas" ❌
+   - Perder términos específicos: "onças-pintadas" → "jaguares" ❌
+   - Acortar el keyword: "safari de onças-pintadas no Pantanal" → "safari de onças Pantanal" ❌
+
+4. ✅ CONSISTENCIA OBLIGATORIA:
+   - El KEYWORD traducido debe ser IDÉNTICO en TITLE, H1 y DESCRIPTION
+   - Usa EXACTAMENTE el keyword "${data.keyword}" traducido en todos los campos
+   - NO uses versiones acortadas o modificadas del keyword
 
 FORMATO DE RESPUESTA:
-KEYWORD: [traducción directa del keyword]
-TITLE: [traducción directa del título]
-H1: [traducción directa del H1]
-DESCRIPTION: [traducción directa de la descripción]
-SLUG: [slug traducido con guiones]`
+KEYWORD: [traducción exacta de "${data.keyword}" preservando estructura completa]
+TITLE: [título traducido incluyendo el keyword completo exacto]
+H1: [H1 traducido incluyendo el keyword completo exacto]
+DESCRIPTION: [descripción traducida incluyendo el keyword completo exacto]
+SLUG: [slug con palabras clave del idioma destino]`
 
     const response = await fetch('/api/ai/generate', {
       method: 'POST',
@@ -119,6 +138,79 @@ SLUG: [slug traducido con guiones]`
       slug
     })
     
+    // 🔍 VALIDACIÓN DE CONSISTENCIA DEL KEYWORD
+    console.log('🔍 [TRANSLATE] Validando consistencia del Focus Keyword...')
+    console.log('  - Keyword traducido:', keyword)
+    console.log('  - ¿Aparece en SEO Title?', seoTitle.toLowerCase().includes(keyword.toLowerCase()))
+    console.log('  - ¿Aparece en H1?', h1Title.toLowerCase().includes(keyword.toLowerCase()))
+    console.log('  - ¿Aparece en Meta Description?', metaDescription.toLowerCase().includes(keyword.toLowerCase()))
+    
+    // Validar que el keyword aparezca en los campos principales
+    const keywordInTitle = seoTitle.toLowerCase().includes(keyword.toLowerCase())
+    const keywordInH1 = h1Title.toLowerCase().includes(keyword.toLowerCase())
+    const keywordInDescription = metaDescription.toLowerCase().includes(keyword.toLowerCase())
+    
+    if (!keywordInTitle && !keywordInH1) {
+      console.warn('⚠️ [TRANSLATE] ADVERTENCIA: Focus Keyword no aparece en SEO Title ni H1')
+    }
+    
+    if (!keywordInDescription) {
+      console.warn('⚠️ [TRANSLATE] ADVERTENCIA: Focus Keyword no aparece en Meta Description')
+    }
+    
+    // 🎯 VALIDACIÓN CRÍTICA DEL FOCUS KEYWORD
+    const originalKeyword = data.keyword.toLowerCase()
+    const translatedKeyword = keyword.toLowerCase()
+    
+    console.log('🔍 [TRANSLATE] VALIDACIÓN CRÍTICA DEL FOCUS KEYWORD:')
+    console.log('  - Original:', data.keyword)
+    console.log('  - Traducido:', keyword)
+    
+    // 🚨 DETECTAR SI SE ESTÁ USANDO UN KEYWORD INCORRECTO (de Related Keywords o Keywords Array)
+    const originalWords = originalKeyword.split(' ')
+    const translatedWords = translatedKeyword.split(' ')
+    
+    // Verificar que no se haya acortado significativamente el keyword
+    if (translatedWords.length < originalWords.length - 1) {
+      console.warn(`🚨 [TRANSLATE] ADVERTENCIA CRÍTICA: Keyword parece acortado`)
+      console.warn(`  - Original tiene ${originalWords.length} palabras: "${data.keyword}"`)
+      console.warn(`  - Traducido tiene ${translatedWords.length} palabras: "${keyword}"`)
+      console.warn(`  - ¿Se está usando Related Keywords en lugar del Focus Keyword principal?`)
+    }
+    
+    // Detectar nombres propios que deben preservarse
+    const properNouns = ['scarlett johansson', 'brad pitt', 'leonardo dicaprio', 'netflix', 'disney', 'marvel', 'hbo', 'amazon prime', 'iphone', 'samsung', 'google', 'apple', 'microsoft']
+    const specificTerms = ['filmes', 'anime', 'manga', 'k-pop', 'streaming', 'onças-pintadas', 'pantanal']
+    
+    let hasProperNouns = false
+    for (const noun of properNouns) {
+      if (originalKeyword.includes(noun)) {
+        hasProperNouns = true
+        if (!translatedKeyword.includes(noun)) {
+          console.warn(`⚠️ [TRANSLATE] ADVERTENCIA: Nombre propio "${noun}" perdido en traducción`)
+        }
+      }
+    }
+    
+    for (const term of specificTerms) {
+      if (originalKeyword.includes(term)) {
+        if (!translatedKeyword.includes(term)) {
+          console.warn(`⚠️ [TRANSLATE] ADVERTENCIA: Término específico "${term}" perdido en traducción`)
+        }
+      }
+    }
+    
+    // 🔍 VALIDACIÓN DE ESTRUCTURA COMPLETA
+    if (originalKeyword.includes('onças-pintadas') && !translatedKeyword.includes('onças-pintadas')) {
+      console.error('🚨 [TRANSLATE] ERROR CRÍTICO: "onças-pintadas" perdido - posible uso de Related Keywords')
+    }
+    
+    if (originalKeyword.includes('pantanal') && !translatedKeyword.includes('pantanal')) {
+      console.error('🚨 [TRANSLATE] ERROR CRÍTICO: "pantanal" perdido - posible uso de Related Keywords')
+    }
+    
+    console.log('✅ [TRANSLATE] Validación de consistencia completada')
+    
     return { keyword, seoTitle, h1Title, metaDescription, slug }
   }
 
@@ -159,24 +251,22 @@ SLUG: [slug traducido con guiones]`
       // Construir prompt para traducir contenido
       const prompt = `Traduce este contenido HTML a ${targetLanguageName}.
 
-🚨 REGLAS - SOLO TRADUCIR:
-1. Traduce ÚNICAMENTE el texto dentro de los tags HTML
-2. MANTÉN todos los tags HTML exactamente como están
-3. NO agregues nuevas negritas, títulos o formato
-4. NO uses Markdown (**texto** o ## Título)
-5. NO modifiques la estructura HTML existente
-6. NO agregues contenido extra
+🎯 FOCUS KEYWORD TRADUCIDO: "${basicFields.keyword}"
 
-⚠️ IMPORTANTE:
-- Si ves <strong>texto</strong> → traduce solo "texto", mantén <strong>
-- Si ves <h2>Título</h2> → traduce solo "Título", mantén <h2>
-- Si ves <p>párrafo</p> → traduce solo "párrafo", mantén <p>
-- NO agregues nuevos tags HTML
+🚨 IMPORTANTE: Cuando encuentres el keyword original "${data.keyword}" en el contenido, 
+reemplázalo EXACTAMENTE por "${basicFields.keyword}" para mantener consistencia SEO.
+
+INSTRUCCIONES:
+1. Traduce solo el texto dentro de los tags HTML
+2. Mantén todos los tags exactamente como están
+3. Cuando veas "${data.keyword}" → usa EXACTAMENTE "${basicFields.keyword}"
+4. NO uses variaciones del keyword, usa la traducción exacta
+5. Mantén la misma estructura y formato HTML
 
 CONTENIDO A TRADUCIR:
 ${data.content}
 
-Responde ÚNICAMENTE con el HTML traducido, SIN MODIFICAR la estructura.`
+Responde solo con el HTML traducido usando "${basicFields.keyword}" consistentemente.`
       
       console.log('📝 [TRANSLATE] Prompt construido, intentando streaming...')
 
@@ -260,11 +350,7 @@ Responde ÚNICAMENTE con el HTML traducido, SIN MODIFICAR la estructura.`
         .replace(/<\/body>/gi, '')
         .replace(/<meta[^>]*>/gi, '')
         .replace(/<title[^>]*>[\s\S]*?<\/title>/gi, '')
-        // 🔧 CONVERTIR MARKDOWN A HTML si la IA lo agregó por error
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // **texto** → <strong>texto</strong>
-        .replace(/^### (.*$)/gim, '<h3>$1</h3>')           // ### Título → <h3>Título</h3>
-        .replace(/^## (.*$)/gim, '<h2>$1</h2>')            // ## Título → <h2>Título</h2>
-        .replace(/^# (.*$)/gim, '<h1>$1</h1>')             // # Título → <h1>Título</h1>
+        // Solo limpiar elementos HTML extra, NO convertir markdown
         .trim()
 
       if (!translatedContent || translatedContent.length < 50) {
@@ -324,35 +410,36 @@ Responde ÚNICAMENTE con el HTML traducido, SIN MODIFICAR la estructura.`
         throw new Error('No authentication token found')
       }
 
-      const prompt = `Traduce este contenido completo a ${targetLanguageName}.
+      // 🎯 PASO 1: Traducir campos básicos usando la misma lógica que translateWithStreaming
+      console.log('📝 [TRANSLATE-NORMAL] PASO 1: Traduciendo campos básicos...')
+      const basicFields = await this.translateBasicFields(data, targetLanguageName, modelId, token)
+      
+      console.log('✅ [TRANSLATE-NORMAL] Campos básicos traducidos correctamente')
+      console.log('   🎯 Keyword:', basicFields.keyword)
+      console.log('   📄 Title:', basicFields.seoTitle.substring(0, 60))
+      
+      // 🎯 PASO 2: Traducir solo el contenido
+      const prompt = `Traduce este contenido HTML a ${targetLanguageName}.
 
-DATOS ORIGINALES:
-TITLE: ${data.title}
-TITLE: ${data.seoTitle || data.title}
-H1: ${data.h1Title || data.title}
-DESCRIPTION: ${data.description}
-KEYWORD: ${data.keyword}
-SLUG: ${data.slug || ''}
+🎯 FOCUS KEYWORD TRADUCIDO: "${basicFields.keyword}"
 
-CONTENT:
+🚨 IMPORTANTE: Cuando encuentres el keyword original "${data.keyword}" en el contenido, 
+reemplázalo EXACTAMENTE por "${basicFields.keyword}" para mantener consistencia SEO.
+
+CONTENIDO A TRADUCIR:
 ${data.content}
 
 INSTRUCCIONES - SOLO TRADUCIR:
-1. Traduce TODO a ${targetLanguageName}
-2. MANTÉN todos los tags HTML exactamente como están
-3. NO agregues nuevas negritas, títulos o formato
-4. NO uses Markdown (**texto** o ## Título)
-5. Traduce SOLO el texto dentro de los tags
-6. Devuelve en este formato:
+1. MANTÉN todos los tags HTML exactamente como están
+2. NO agregues nuevas negritas, títulos o formato
+3. NO uses Markdown (**texto** o ## Título)
+4. Traduce SOLO el texto dentro de los tags HTML
+5. Cuando veas "${data.keyword}" → usa EXACTAMENTE "${basicFields.keyword}"
+6. NO uses variaciones del keyword, usa la traducción exacta
+7. NO agregues explicaciones ni comentarios
+8. NO modifiques la estructura HTML existente
 
-TITLE: [título traducido]
-TITLE: [título traducido]
-H1: [título H1 traducido]
-DESCRIPTION: [descripción traducida]
-KEYWORD: [keyword traducido]
-SLUG: [slug-traducido]
-CONTENT:
-[contenido HTML traducido - SIN MARKDOWN]`
+Responde solo con el HTML traducido usando "${basicFields.keyword}" consistentemente.`
 
       const response = await fetch('/api/ai/generate', {
         method: 'POST',
@@ -373,53 +460,7 @@ CONTENT:
       }
 
       const result = await response.json()
-      const text = result.data?.content || result.content || ''
-
-      // Parsear respuesta
-      const lines = text.split('\n')
-      let title = ''
-      let seoTitle = ''
-      let h1Title = ''
-      let description = ''
-      let keyword = ''
-      let objective = ''
-      let keywords: string[] = []
-      let relatedKeywords: string[] = []
-      let slug = ''
-      let inContent = false
-
-      for (const line of lines) {
-        if (line.startsWith('TITLE:')) {
-          seoTitle = line.replace('TITLE:', '').trim()
-        } else if (line.startsWith('TITLE:')) {
-          title = line.replace('TITLE:', '').trim()
-        } else if (line.startsWith('H1:')) {
-          h1Title = line.replace('H1:', '').trim()
-        } else if (line.startsWith('DESCRIPTION:')) {
-          description = line.replace('DESCRIPTION:', '').trim()
-        } else if (line.startsWith('KEYWORD:')) {
-          keyword = line.replace('KEYWORD:', '').trim()
-        } else if (line.startsWith('SLUG:')) {
-          slug = line.replace('SLUG:', '').trim()
-        } else if (line.startsWith('CONTENT:')) {
-          inContent = true
-        }
-      }
-
-      // Extraer contenido
-      const contentStartIndex = text.indexOf('CONTENT:')
-      let translatedContent = contentStartIndex !== -1 
-        ? text.substring(contentStartIndex + 8).trim()
-        : text
-
-      // Si no se extrajo keyword del formato, intentar extraerlo del título
-      if (!keyword && seoTitle) {
-        const titleWords = seoTitle.split(':')[0].trim()
-        if (titleWords && titleWords.length > 5) {
-          keyword = titleWords.toLowerCase()
-          console.log('✅ [TRANSLATE-NORMAL] Keyword extraído del título:', keyword)
-        }
-      }
+      let translatedContent = result.data?.content || result.content || ''
 
       // 🧹 LIMPIEZA: Convertir Markdown residual a HTML en método fallback
       let cleanContent = translatedContent.trim()
@@ -430,26 +471,20 @@ CONTENT:
         .replace(/^## (.*$)/gim, '<h2>$1</h2>')            // ## Título → <h2>Título</h2>
         .replace(/^# (.*$)/gim, '<h1>$1</h1>')             // # Título → <h1>Título</h1>
 
-      // 🎯 GENERAR SLUG DESDE TÍTULO
-      const finalTitle = seoTitle || data.seoTitle || title || data.title
-      const generatedSlug = this.generateSlugFromTitle(finalTitle)
-      
-      console.log('🔗 [TRANSLATE-NORMAL] Generando slug desde título:', {
-        title: finalTitle,
-        generatedSlug,
-        originalSlug: slug || data.slug
-      })
+      console.log('✅ [TRANSLATE-NORMAL] Contenido traducido y limpio:', cleanContent.length, 'chars')
+      console.log('   Primeros 100 chars:', cleanContent.substring(0, 100))
 
+      // ✅ Usar campos básicos del PASO 1 (ya traducidos correctamente)
       return {
-        title: title || seoTitle || data.title,
-        seoTitle: seoTitle || title || data.seoTitle || data.title,
-        h1Title: h1Title || title || data.h1Title || data.title,
-        description: description || data.description || '',
-        keyword: keyword || data.keyword,
-        objectivePhrase: objective || data.objectivePhrase || '',
-        keywords: keywords || data.keywords || [],
-        relatedKeywords: relatedKeywords || data.relatedKeywords || [],
-        slug: generatedSlug,
+        title: basicFields.seoTitle,
+        seoTitle: basicFields.seoTitle,
+        h1Title: basicFields.h1Title,
+        description: basicFields.metaDescription,
+        keyword: basicFields.keyword,
+        objectivePhrase: data.objectivePhrase || '',
+        keywords: data.keywords || [],
+        relatedKeywords: [],
+        slug: basicFields.slug,
         content: cleanContent
       }
 

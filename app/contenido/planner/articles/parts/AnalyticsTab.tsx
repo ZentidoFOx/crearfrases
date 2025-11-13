@@ -166,8 +166,10 @@ export function AnalyticsTab({
       }
     }
     
-    return validateYoastSEO(editedContent, article.keyword)
-  }, [editedContent, article?.keyword])
+    const currentLanguage = article?.language || 'es'
+    console.log('🌍 [ANALYTICS] Validando Yoast SEO en idioma:', currentLanguage)
+    return validateYoastSEO(editedContent, article.keyword, currentLanguage)
+  }, [editedContent, article?.keyword, article?.language])
 
   // Calcular Issues/Sugerencias (incluyendo Yoast SEO)
   const issues = useMemo(() => {

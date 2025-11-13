@@ -3,36 +3,73 @@
  * Resuelve problemas comunes de Yoast como palabras de transición y longitud de oraciones
  */
 
-// Lista completa de palabras de transición en español para Yoast SEO
-export const TRANSITION_WORDS = [
-  // Adición
-  'además', 'también', 'asimismo', 'igualmente', 'del mismo modo', 'por otra parte',
-  'por otro lado', 'sumado a esto', 'adicionalmente', 'encima de todo',
-  
-  // Contraste
-  'sin embargo', 'no obstante', 'por el contrario', 'en cambio', 'mientras que',
-  'aunque', 'a pesar de', 'aun así', 'pero', 'mas',
-  
-  // Causa y efecto
-  'por lo tanto', 'en consecuencia', 'como resultado', 'debido a', 'por esta razón',
-  'así que', 'por eso', 'de ahí que', 'por consiguiente', 'entonces',
-  
-  // Tiempo
-  'primero', 'segundo', 'luego', 'después', 'finalmente', 'antes', 'durante',
-  'mientras tanto', 'posteriormente', 'más tarde', 'al principio', 'al final',
-  
-  // Ejemplos
-  'por ejemplo', 'como', 'tal como', 'específicamente', 'en particular',
-  'es decir', 'o sea', 'esto es', 'a saber', 'como muestra',
-  
-  // Énfasis
-  'especialmente', 'sobre todo', 'principalmente', 'en especial', 'particularmente',
-  'notablemente', 'ciertamente', 'efectivamente', 'realmente', 'verdaderamente',
-  
-  // Conclusión
-  'en resumen', 'en conclusión', 'para concluir', 'en definitiva', 'en suma',
-  'para resumir', 'dicho de otro modo', 'en otras palabras', 'brevemente'
-]
+// Lista completa de palabras de transición MULTIIDIOMA para Yoast SEO
+export const TRANSITION_WORDS_BY_LANGUAGE = {
+  'es': [
+    // Adición
+    'además', 'también', 'asimismo', 'igualmente', 'del mismo modo', 'por otra parte',
+    'por otro lado', 'sumado a esto', 'adicionalmente', 'encima de todo',
+    
+    // Contraste
+    'sin embargo', 'no obstante', 'por el contrario', 'en cambio', 'mientras que',
+    'aunque', 'a pesar de', 'aun así', 'pero', 'mas',
+    
+    // Causa y efecto
+    'por lo tanto', 'en consecuencia', 'como resultado', 'debido a', 'por esta razón',
+    'así que', 'por eso', 'de ahí que', 'por consiguiente', 'entonces',
+    
+    // Tiempo
+    'primero', 'segundo', 'luego', 'después', 'finalmente', 'antes', 'durante',
+    'mientras tanto', 'posteriormente', 'más tarde', 'al principio', 'al final',
+    
+    // Ejemplos
+    'por ejemplo', 'como', 'tal como', 'específicamente', 'en particular',
+    'es decir', 'o sea', 'esto es', 'a saber', 'como muestra',
+    
+    // Énfasis
+    'especialmente', 'sobre todo', 'principalmente', 'en especial', 'particularmente',
+    'notablemente', 'ciertamente', 'efectivamente', 'realmente', 'verdaderamente',
+    
+    // Conclusión
+    'en resumen', 'en conclusión', 'para concluir', 'en definitiva', 'en suma',
+    'para resumir', 'dicho de otro modo', 'en otras palabras', 'brevemente'
+  ],
+  'en': [
+    'furthermore', 'for example', 'however', 'therefore', 'also', 'likewise',
+    'first of all', 'finally', 'on the other hand', 'consequently',
+    'nevertheless', 'instead', 'on the contrary', 'in summary', 'meanwhile',
+    'in fact', 'indeed', 'of course', 'certainly', 'obviously', 'moreover',
+    'additionally', 'specifically', 'particularly', 'especially',
+    'besides', 'thus', 'hence', 'accordingly', 'as a result', 'in addition',
+    'what is more', 'in contrast', 'nonetheless', 'still', 'yet', 'although'
+  ],
+  'pt': [
+    'além disso', 'por exemplo', 'no entanto', 'portanto', 'também', 'da mesma forma',
+    'em primeiro lugar', 'finalmente', 'por outro lado', 'consequentemente',
+    'não obstante', 'em vez disso', 'pelo contrário', 'em resumo', 'enquanto isso',
+    'de fato', 'com efeito', 'claro', 'certamente', 'obviamente'
+  ],
+  'fr': [
+    'de plus', 'par exemple', 'cependant', 'par conséquent', 'aussi', 'de même',
+    'tout d\'abord', 'finalement', 'd\'autre part', 'en conséquence',
+    'néanmoins', 'au lieu de', 'au contraire', 'en résumé', 'pendant ce temps',
+    'en fait', 'en effet', 'bien sûr', 'certainement', 'évidemment'
+  ],
+  'it': [
+    'inoltre', 'per esempio', 'tuttavia', 'pertanto', 'anche', 'allo stesso modo',
+    'in primo luogo', 'infine', 'd\'altra parte', 'di conseguenza',
+    'tuttavia', 'invece', 'al contrario', 'in sintesi', 'nel frattempo',
+    'infatti', 'in effetti', 'ovviamente', 'certamente', 'chiaramente'
+  ]
+}
+
+// Función para obtener palabras de transición por idioma
+export function getTransitionWords(language: string = 'es'): string[] {
+  return TRANSITION_WORDS_BY_LANGUAGE[language as keyof typeof TRANSITION_WORDS_BY_LANGUAGE] || TRANSITION_WORDS_BY_LANGUAGE['es']
+}
+
+// Mantener compatibilidad con código existente
+export const TRANSITION_WORDS = TRANSITION_WORDS_BY_LANGUAGE['es']
 
 // Palabras clave que se pueden poner en negrita SI YA EXISTEN en el contenido
 export const KEYWORDS_TO_BOLD = [
@@ -334,22 +371,31 @@ export interface YoastSEOValidation {
   suggestions: string[]
 }
 
-export function validateYoastSEO(content: string, keyword: string): YoastSEOValidation {
+export function validateYoastSEO(content: string, keyword: string, language: string = 'es'): YoastSEOValidation {
   const issues: string[] = []
   const suggestions: string[] = []
   
-  // 1. Verificar palabras de transición
-  const hasTransitionWords = TRANSITION_WORDS.some(word => 
+  // 1. Verificar palabras de transición según el idioma
+  const transitionWords = getTransitionWords(language)
+  const hasTransitionWords = transitionWords.some(word => 
     content.toLowerCase().includes(word.toLowerCase())
   )
   
-  const transitionWordsCount = TRANSITION_WORDS.filter(word => 
+  const transitionWordsCount = transitionWords.filter(word => 
     content.toLowerCase().includes(word.toLowerCase())
   ).length
   
+  console.log(`🔍 [YOAST-VALIDATION] Validando palabras de transición en ${language}:`, transitionWordsCount)
+  
   if (!hasTransitionWords) {
-    issues.push('Palabras de transición: Ninguna de las frases contiene palabras de transición.')
-    suggestions.push('Agrega palabras como "además", "por ejemplo", "sin embargo", "por lo tanto".')
+    const exampleWords = language === 'en' 
+      ? '"however", "furthermore", "therefore", "moreover"'
+      : language === 'pt'
+      ? '"além disso", "no entanto", "portanto", "também"'
+      : '"además", "por ejemplo", "sin embargo", "por lo tanto"'
+    
+    issues.push(`Palabras de transición: Ninguna de las frases contiene palabras de transición.`)
+    suggestions.push(`Agrega palabras como ${exampleWords}.`)
   }
   
   // 2. Verificar longitud de oraciones

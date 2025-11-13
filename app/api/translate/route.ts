@@ -11,12 +11,12 @@ import { apiKeyProvider } from '@/lib/utils/api-key-provider'
 
 // Schema for validation
 const translationSchema = z.object({
-  title: z.string().describe('Título SEO traducido (40-60 caracteres)'),
-  h1Title: z.string().describe('Título H1 traducido'),
-  description: z.string().describe('Meta descripción traducida (150-160 caracteres)'),
-  keyword: z.string().describe('Palabra clave principal traducida'),
-  objectivePhrase: z.string().describe('Frase objetivo traducida'),
-  keywords: z.array(z.string()).describe('Array de keywords relacionadas traducidas'),
+  title: z.string().describe('Título traducido directamente'),
+  h1Title: z.string().describe('Título H1 traducido directamente'),
+  description: z.string().describe('Descripción traducida directamente'),
+  keyword: z.string().describe('Palabra clave traducida directamente'),
+  objectivePhrase: z.string().describe('Frase objetivo traducida directamente'),
+  keywords: z.array(z.string()).describe('Array de keywords traducidas directamente'),
   content: z.string().describe('Contenido completo del artículo traducido en formato markdown. CRÍTICO: Debes preservar EXACTAMENTE la estructura markdown del original (##, ###, **, *, -, saltos de línea \\n\\n). NO juntes párrafos. NO elimines etiquetas markdown. Mantén la misma cantidad de saltos de línea y espaciado que el texto original.')
 })
 
@@ -55,12 +55,12 @@ export async function POST(request: NextRequest) {
 CONTENIDO A TRADUCIR:
 
 📌 METADATOS:
-- Título SEO: ${data.title}
+- Título: ${data.title}
 - Título H1: ${data.h1Title || data.title}
-- Meta descripción: ${data.description || ''}
-- Keyword: ${data.keyword}
+- Descripción: ${data.description || ''}
+- Palabra clave: ${data.keyword}
 - Frase objetivo: ${data.objectivePhrase || ''}
-- Keywords: ${data.keywords?.join(', ') || ''}
+- Palabras clave: ${data.keywords?.join(', ') || ''}
 
 📝 ARTÍCULO COMPLETO (FORMATO MARKDOWN):
 ${data.content}
@@ -104,8 +104,8 @@ ${data.content}
 6️⃣ **CALIDAD DE TRADUCCIÓN**:
    - Traduce de forma natural y fluida en ${targetLanguageName}
    - Adapta expresiones idiomáticas al contexto cultural
-   - Optimiza para SEO en el idioma destino
    - Mantén el tono profesional del original
+   - NO optimices ni mejores el contenido, solo tradúcelo
 
 🎯 AHORA TRADUCE EL CONTENIDO RESPETANDO AL 100% LA ESTRUCTURA MARKDOWN.`
 

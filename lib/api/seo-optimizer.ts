@@ -75,7 +75,10 @@ class SEOOptimizerService {
         'first of all', 'finally', 'on the other hand', 'consequently',
         'nevertheless', 'instead', 'on the contrary', 'in summary', 'meanwhile',
         'in fact', 'indeed', 'of course', 'certainly', 'obviously', 'moreover',
-        'additionally', 'specifically', 'particularly', 'especially'
+        'additionally', 'specifically', 'particularly', 'especially',
+        'besides', 'thus', 'hence', 'accordingly', 'as a result', 'in addition',
+        'what is more', 'in contrast', 'on the contrary', 'nonetheless',
+        'still', 'yet', 'although', 'despite this', 'even so', 'all the same'
       ],
       'fr': [
         'de plus', 'par exemple', 'cependant', 'par conséquent', 'aussi', 'de même',
@@ -134,7 +137,9 @@ class SEOOptimizerService {
         : this.buildSEOPrompt(content, keyword, title, metaDescription, language)
       
       console.log('🤖 [SEO-OPTIMIZER] Enviando artículo completo a la IA...')
+      console.log('🌍 [SEO-OPTIMIZER] Tipo de optimización:', request.isTranslation ? 'TRADUCCIÓN' : 'ORIGINAL')
       console.log('📏 [SEO-OPTIMIZER] Tamaño del prompt:', prompt.length, 'caracteres')
+      console.log('🎯 [SEO-OPTIMIZER] Idioma objetivo:', language)
       
       // Usar aiService para generar contenido optimizado
       let optimizedContent = await aiService.generateWithModel(prompt, modelId || 16, {
@@ -153,16 +158,33 @@ class SEOOptimizerService {
       // Limpiar respuesta de la IA (remover explicaciones extra)
       optimizedContent = this.cleanAIResponse(optimizedContent)
       
-      // 🎯 APLICAR OPTIMIZACIONES AUTOMÁTICAS YOAST SEO (FALLBACK)
-      console.log('🔧 [SEO-OPTIMIZER] Aplicando optimizaciones automáticas Yoast SEO...')
-      const { optimizeForYoastSEO } = await import('@/lib/utils/yoast-seo-optimizer')
-      optimizedContent = optimizeForYoastSEO(optimizedContent, keyword)
-      console.log('✅ [SEO-OPTIMIZER] Optimizaciones automáticas aplicadas')
+      // 🎯 APLICAR OPTIMIZACIONES AUTOMÁTICAS YOAST SEO (SOLO PARA ARTÍCULOS ORIGINALES)
+      if (!request.isTranslation) {
+        console.log('🔧 [SEO-OPTIMIZER] Aplicando optimizaciones automáticas Yoast SEO...')
+        const { optimizeForYoastSEO } = await import('@/lib/utils/yoast-seo-optimizer')
+        optimizedContent = optimizeForYoastSEO(optimizedContent, keyword)
+        console.log('✅ [SEO-OPTIMIZER] Optimizaciones automáticas aplicadas')
+      } else {
+        console.log('🔒 [SEO-OPTIMIZER] TRADUCCIÓN: Saltando optimizaciones automáticas Yoast SEO')
+      }
       
       // 🧹 LIMPIAR CÓDIGO MARKDOWN
       console.log('🧹 [SEO-OPTIMIZER] Eliminando código markdown...')
       optimizedContent = this.cleanMarkdownCode(optimizedContent)
       console.log('✅ [SEO-OPTIMIZER] Código markdown eliminado')
+      
+      // 🎯 VERIFICAR Y FORZAR PALABRAS DE TRANSICIÓN (ESPECIALMENTE PARA TRADUCCIONES)
+      if (request.isTranslation) {
+        console.log('🔍 [SEO-OPTIMIZER] Verificando palabras de transición en traducción...')
+        const transitionCheck = this.analyzeContent(optimizedContent, keyword, language)
+        console.log('📊 [SEO-OPTIMIZER] Palabras de transición encontradas:', transitionCheck.transitionWords)
+        
+        if (transitionCheck.transitionWords < 3) {
+          console.log('⚠️ [SEO-OPTIMIZER] Pocas palabras de transición, aplicando refuerzo...')
+          optimizedContent = this.forceAddTransitionWords(optimizedContent, language)
+          console.log('✅ [SEO-OPTIMIZER] Palabras de transición reforzadas')
+        }
+      }
       
       // Debug: verificar imágenes en contenido optimizado
       const optimizedImages = optimizedContent.match(imageRegex) || []
@@ -330,10 +352,23 @@ Optimiza ahora:`
     
     let transitionCount = 0
     const lowerContent = content.toLowerCase()
+    
+    // Mejorar detección para frases de múltiples palabras
     transitionWords.forEach(word => {
-      const matches = lowerContent.match(new RegExp(`\\b${word.toLowerCase()}\\b`, 'g'))
-      if (matches) transitionCount += matches.length
+      const wordLower = word.toLowerCase()
+      // Escapar caracteres especiales para regex
+      const escapedWord = wordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      
+      // Buscar la palabra/frase completa
+      const regex = new RegExp(`\\b${escapedWord}\\b`, 'g')
+      const matches = lowerContent.match(regex)
+      if (matches) {
+        transitionCount += matches.length
+        console.log(`🔍 [ANALYZE] Encontrada palabra de transición: "${word}" (${matches.length} veces)`)
+      }
     })
+    
+    console.log(`📊 [ANALYZE] Total palabras de transición en ${language}:`, transitionCount)
     
     // Contar keywords en negrita
     const boldKeywords = (content.match(new RegExp(`\\*\\*[^*]*${keyword}[^*]*\\*\\*`, 'gi')) || []).length +
@@ -409,39 +444,50 @@ Optimiza ahora:`
 🚨 IMPORTANTE: Este es contenido TRADUCIDO de ${originalLangName} a ${languageName}. 
 PRESERVA la estructura, párrafos y contexto original. NO juntes párrafos ni reduzcas contenido.
 
+⚠️ TRADUCCIÓN PURA: NO apliques optimizaciones SEO agresivas. Solo mejora la fluidez natural.
+
 KEYWORD: "${keyword}"
 IDIOMA: ${languageName}
 CONTENIDO TRADUCIDO: ${originalLangName} → ${languageName}
 
 TAREAS ESPECÍFICAS PARA TRADUCCIONES:
 
-1. 🔒 PRESERVAR ESTRUCTURA:
+1. 🚨 PALABRAS DE TRANSICIÓN - OBLIGATORIO CUMPLIR:
+   
+   ⚠️ CRÍTICO: DEBES agregar palabras de transición hasta que MÁS DEL 30% de las frases las tengan.
+   
+   🎯 PALABRAS OBLIGATORIAS EN ${languageName.toUpperCase()}:
+   ${this.getTransitionWordsByLanguage(language).slice(0, 15).join(', ')}
+   
+   📝 CÓMO APLICAR (OBLIGATORIO):
+   
+   ❌ INCORRECTO: "El turismo es importante. Los visitantes disfrutan. La región ofrece experiencias."
+   
+   ✅ CORRECTO: "Además, el turismo es importante. Sin embargo, los visitantes disfrutan. Por lo tanto, la región ofrece experiencias."
+   
+   🔥 INSTRUCCIONES OBLIGATORIAS:
+   - AGREGA al inicio de CADA 2da o 3ra frase una palabra de transición
+   - USA: "Además,", "Sin embargo,", "Por lo tanto,", "No obstante,", "En consecuencia,"
+   - CONECTA párrafos con: "Por otra parte,", "Asimismo,", "De hecho,"
+   - MÍNIMO 30% de frases DEBEN tener palabras de transición
+   - Si una frase no tiene transición, AGRÉGALA al inicio
+
+2. 🔒 PRESERVAR ESTRUCTURA:
    - Mantén TODOS los párrafos separados
    - NO juntes párrafos diferentes
    - Conserva la longitud y profundidad del contenido
    - Respeta los saltos de línea y espaciado
 
-2. 📝 OPTIMIZACIÓN SUAVE:
-   - Agrega palabras de transición naturales en ${languageName}
-   - Mejora la fluidez SIN cambiar el significado
-   - Usa sinónimos apropiados para el idioma
-   - Mantén el tono y estilo original
-
-3. 🎯 SEO EN ${languageName.toUpperCase()}:
-   - Incluye la keyword "${keyword}" naturalmente
-   - Usa palabras de transición apropiadas para ${languageName}
-   - Mejora la legibilidad sin alterar la estructura
-   - Mantén la densidad de keywords apropiada
+3. 🎯 KEYWORD "${keyword}":
+   - Incluye naturalmente 2-3 veces en el contenido
+   - Usa en <strong>${keyword}</strong> máximo 2 veces
+   - Mantén densidad apropiada para ${languageName}
 
 4. ⚠️ PROHIBIDO:
    - NO juntar párrafos separados
    - NO reducir la cantidad de contenido
    - NO cambiar el orden de las ideas
    - NO alterar el contexto o significado
-   - NO eliminar información importante
-
-PALABRAS DE TRANSICIÓN EN ${languageName.toUpperCase()}:
-${this.getTransitionWordsByLanguage(language).slice(0, 20).join(', ')}
 
 FORMATO DE RESPUESTA:
 Devuelve SOLO el contenido optimizado en formato HTML limpio, manteniendo:
@@ -507,6 +553,56 @@ ${content}`
     })
     
     return cleanedContent
+  }
+
+  /**
+   * 🎯 Fuerza la adición de palabras de transición cuando la IA no las agregó suficientemente
+   */
+  private forceAddTransitionWords(content: string, language: string): string {
+    const transitionWords = this.getTransitionWordsByLanguage(language)
+    const sentences = content.split(/(?<=[.!?])\s+/)
+    
+    if (sentences.length < 3) return content
+    
+    let modifiedContent = content
+    let addedTransitions = 0
+    
+    // Agregar palabras de transición cada 2-3 frases
+    for (let i = 1; i < sentences.length; i += 2) {
+      const sentence = sentences[i].trim()
+      if (!sentence) continue
+      
+      // Verificar si la frase ya tiene una palabra de transición
+      const hasTransition = transitionWords.some(word => 
+        sentence.toLowerCase().startsWith(word.toLowerCase())
+      )
+      
+      if (!hasTransition && addedTransitions < 3) {
+        // Usar palabras de transición más comunes y efectivas por idioma
+        const commonTransitions = {
+          'en': ['However', 'Furthermore', 'Therefore', 'Moreover', 'Additionally'],
+          'es': ['Además', 'Sin embargo', 'Por lo tanto', 'No obstante', 'Asimismo'],
+          'pt': ['Além disso', 'No entanto', 'Portanto', 'Contudo', 'Ademais'],
+          'fr': ['Cependant', 'De plus', 'Par conséquent', 'Néanmoins', 'En outre'],
+          'it': ['Tuttavia', 'Inoltre', 'Pertanto', 'Nondimeno', 'Inoltre']
+        }
+        
+        const langTransitions = commonTransitions[language as keyof typeof commonTransitions] || commonTransitions['en']
+        const selectedTransition = langTransitions[addedTransitions % langTransitions.length]
+        
+        // Reemplazar la frase original con la frase con transición
+        const originalSentence = sentences[i]
+        const newSentence = `${selectedTransition}, ${sentence.toLowerCase()}`
+        
+        modifiedContent = modifiedContent.replace(originalSentence, newSentence)
+        addedTransitions++
+        
+        console.log(`🔧 [FORCE-TRANSITION] Agregada: "${selectedTransition}," al inicio de frase`)
+      }
+    }
+    
+    console.log(`✅ [FORCE-TRANSITION] Total agregadas: ${addedTransitions} palabras de transición`)
+    return modifiedContent
   }
 }
 
