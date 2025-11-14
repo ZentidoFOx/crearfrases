@@ -121,10 +121,11 @@ class Article
                 content_type,
                 wordpress_post_id,
                 featured_image_url,
+                featured_image_id,
                 wordpress_categories,
                 wordpress_status,
                 created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ";
         
         $stmt = $db->prepare($query);
@@ -146,6 +147,7 @@ class Article
             $data['content_type'] ?? 'planner',
             $data['wordpress_post_id'] ?? null,
             $data['featured_image_url'] ?? null,
+            $data['featured_image_id'] ?? null,
             $categoriesJson,
             $data['wordpress_status'] ?? 'draft',
             $userId
@@ -202,6 +204,12 @@ class Article
             $fields[] = "featured_image_url = ?";
             $params[] = $data['featured_image_url'];
             error_log("[ARTICLE-UPDATE] 📸 featured_image_url: " . $data['featured_image_url']);
+        }
+        
+        if (isset($data['featured_image_id'])) {
+            $fields[] = "featured_image_id = ?";
+            $params[] = $data['featured_image_id'];
+            error_log("[ARTICLE-UPDATE] 📸 featured_image_id: " . $data['featured_image_id']);
         }
         
         if (isset($data['wordpress_categories'])) {
@@ -483,6 +491,7 @@ class Article
             'content_type' => $article['content_type'] ?? 'planner',
             'wordpress_post_id' => isset($article['wordpress_post_id']) ? (int)$article['wordpress_post_id'] : null,
             'featured_image_url' => $article['featured_image_url'] ?? null,
+            'featured_image_id' => isset($article['featured_image_id']) ? (int)$article['featured_image_id'] : null,
             'wordpress_categories' => isset($article['wordpress_categories']) ? json_decode($article['wordpress_categories'], true) : null,
             'wordpress_status' => $article['wordpress_status'] ?? 'draft',
             'optimization_count' => (int)($article['optimization_count'] ?? 0),

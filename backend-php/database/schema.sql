@@ -165,6 +165,7 @@ CREATE TABLE `article_translations` (
   `word_count` int(10) UNSIGNED DEFAULT 0 COMMENT 'Número de palabras',
   `wordpress_post_id` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID del post en WordPress si fue publicado',
   `featured_image_url` varchar(500) DEFAULT NULL COMMENT 'URL de la imagen destacada para WordPress',
+  `featured_image_id` int(10) UNSIGNED DEFAULT NULL COMMENT 'ID de la imagen destacada en WordPress',
   `wordpress_categories` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Categorías seleccionadas para WordPress [{id, name, slug}]' CHECK (json_valid(`wordpress_categories`)),
   `wordpress_status` enum('draft','publish','pending','private','future') DEFAULT 'draft' COMMENT 'Estado de publicación en WordPress',
   `created_at` timestamp NULL DEFAULT current_timestamp(),

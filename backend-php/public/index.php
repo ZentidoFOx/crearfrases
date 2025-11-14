@@ -27,9 +27,9 @@ spl_autoload_register(function ($class) {
     }
 });
 
-// CORS Middleware - Manejado por .htaccess
-// use App\Middleware\CorsMiddleware;
-// CorsMiddleware::handle();
+// CORS Middleware
+use App\Middleware\CorsMiddleware;
+CorsMiddleware::handle();
 
 // Error handler
 set_exception_handler(function ($exception) {

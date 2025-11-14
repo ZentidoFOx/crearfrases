@@ -129,6 +129,15 @@ class ArticleController
         if (!$data) {
             Response::error('Datos inválidos', 'INVALID_DATA', null, 400);
         }
+        
+        // 🔥 DEBUG: Log de datos recibidos en el controlador
+        error_log("[ARTICLE-CONTROLLER-UPDATE] Datos recibidos: " . json_encode($data));
+        if (isset($data['featured_image_id'])) {
+            error_log("[ARTICLE-CONTROLLER-UPDATE] 📸 featured_image_id: " . $data['featured_image_id']);
+        }
+        if (isset($data['featured_image_url'])) {
+            error_log("[ARTICLE-CONTROLLER-UPDATE] 📸 featured_image_url: " . $data['featured_image_url']);
+        }
 
         try {
             $article = Article::findById($id);

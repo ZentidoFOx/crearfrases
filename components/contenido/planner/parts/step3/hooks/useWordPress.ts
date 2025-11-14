@@ -13,6 +13,7 @@ interface MediaImage {
 
 interface ArticleData {
   featured_image_url?: string | null
+  featured_image_id?: number | null
   wordpress_categories?: Array<{ id: number; name: string; slug: string }> | null
   keywords_array?: string[]
 }
@@ -59,22 +60,16 @@ export const useWordPress = (
         setWpFeaturedImage(articleData.featured_image_url)
         prevFeaturedImageRef.current = articleData.featured_image_url
         
-        // 🔥 Extraer ID de la URL si es posible (formato: /wp-content/uploads/...?id=123)
-        // O buscar en availableImages si la URL coincide
-        const urlParams = new URL(articleData.featured_image_url, 'http://localhost').searchParams
-        const idFromUrl = urlParams.get('id')
-        if (idFromUrl) {
-          setWpFeaturedImageId(parseInt(idFromUrl))
-          console.log('📸 Imagen destacada restaurada con ID:', idFromUrl)
-        } else {
-          // Buscar en availableImages por URL
-          const matchingImage = availableImages.find(img => img.url === articleData.featured_image_url)
-          if (matchingImage) {
-            setWpFeaturedImageId(matchingImage.id)
-            console.log('📸 Imagen destacada restaurada con ID:', matchingImage.id)
-          } else {
-            console.log('📸 Imagen destacada restaurada (sin ID):', articleData.featured_image_url)
-          }
+        // 🔥 Restaurar URL e ID de la imagen
+        console.log('📸 Imagen destacada restaurada:', {
+          url: articleData.featured_image_url,
+          id: articleData.featured_image_id
+        })
+        
+        // Si hay ID guardado, restaurarlo también
+        if (articleData.featured_image_id) {
+          setWpFeaturedImageId(articleData.featured_image_id)
+          console.log('📸 ID de imagen restaurado:', articleData.featured_image_id)
         }
       }
       // Si no hay imagen, NO hacer nada (mantener la actual)

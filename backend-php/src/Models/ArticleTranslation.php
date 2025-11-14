@@ -59,12 +59,12 @@ class ArticleTranslation
                 article_id, language, title, h1_title, keyword, 
                 objective_phrase, keywords_array, slug, content, 
                 sections_json, meta_description, seo_data, word_count,
-                featured_image_url, wordpress_categories, wordpress_status
+                featured_image_url, featured_image_id, wordpress_categories, wordpress_status
             ) VALUES (
                 :article_id, :language, :title, :h1_title, :keyword,
                 :objective_phrase, :keywords_array, :slug, :content,
                 :sections_json, :meta_description, :seo_data, :word_count,
-                :featured_image_url, :wordpress_categories, :wordpress_status
+                :featured_image_url, :featured_image_id, :wordpress_categories, :wordpress_status
             )
         ");
         
@@ -83,6 +83,7 @@ class ArticleTranslation
             'seo_data' => isset($data['seo_data']) ? json_encode($data['seo_data']) : null,
             'word_count' => $data['word_count'] ?? 0,
             'featured_image_url' => $data['featured_image_url'] ?? null,
+            'featured_image_id' => $data['featured_image_id'] ?? null,
             'wordpress_categories' => isset($data['wordpress_categories']) && is_array($data['wordpress_categories']) ? json_encode($data['wordpress_categories']) : null,
             'wordpress_status' => $data['wordpress_status'] ?? 'draft'
         ]);
@@ -101,7 +102,7 @@ class ArticleTranslation
         $values = ['article_id' => $articleId, 'language' => $language];
         
         foreach ($data as $key => $value) {
-            if (in_array($key, ['title', 'h1_title', 'keyword', 'objective_phrase', 'slug', 'content', 'meta_description', 'word_count', 'wordpress_post_id', 'featured_image_url', 'wordpress_status'])) {
+            if (in_array($key, ['title', 'h1_title', 'keyword', 'objective_phrase', 'slug', 'content', 'meta_description', 'word_count', 'wordpress_post_id', 'featured_image_url', 'featured_image_id', 'wordpress_status'])) {
                 $fields[] = "$key = :$key";
                 $values[$key] = $value;
             } elseif (in_array($key, ['keywords_array', 'sections_json', 'seo_data', 'wordpress_categories'])) {
@@ -188,6 +189,7 @@ class ArticleTranslation
             'word_count' => (int)$translation['word_count'],
             'wordpress_post_id' => $translation['wordpress_post_id'] ? (int)$translation['wordpress_post_id'] : null,
             'featured_image_url' => $translation['featured_image_url'] ?? null,
+            'featured_image_id' => isset($translation['featured_image_id']) ? (int)$translation['featured_image_id'] : null,
             'wordpress_categories' => isset($translation['wordpress_categories']) ? json_decode($translation['wordpress_categories'], true) : null,
             'wordpress_status' => $translation['wordpress_status'] ?? 'draft',
             'created_at' => $translation['created_at'],

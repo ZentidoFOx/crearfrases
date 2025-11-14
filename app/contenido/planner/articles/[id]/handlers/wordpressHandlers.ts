@@ -190,12 +190,12 @@ export function createWordPressHandlers(props: WordPressHandlersProps) {
             status: postStatus
           }
           
-          // 🔥 DEBUG: Log del ID antes de publicar
-          console.log('🔍 [PUBLISH-DATA] featuredImageId:', {
-            wpFeaturedImageId: wordpress.wpFeaturedImageId,
-            type: typeof wordpress.wpFeaturedImageId,
-            isNull: wordpress.wpFeaturedImageId === null,
-            isUndefined: wordpress.wpFeaturedImageId === undefined
+          // 🔥 DEBUG: Log de la imagen destacada antes de publicar
+          console.log('🔍 [PUBLISH-DATA] Imagen Destacada:', {
+            url: wordpress.wpFeaturedImage,
+            id: wordpress.wpFeaturedImageId,
+            urlType: typeof wordpress.wpFeaturedImage,
+            idType: typeof wordpress.wpFeaturedImageId
           })
           
           console.log(`🚀 Publicando ${langCode.toUpperCase()}:`, {
@@ -207,18 +207,15 @@ export function createWordPressHandlers(props: WordPressHandlersProps) {
             contentPreview: publishData.content?.substring(0, 150),
             linkedWith: publishData.translations,
             featuredImageUrl: publishData.featuredImageUrl,
-            featuredImageId: publishData.featuredImageId,
             categories: publishData.categories,
             tags: publishData.tags
           })
           
           // 🔥 VERIFICACIÓN CRÍTICA: Asegurar que la imagen se está enviando
-          if (!publishData.featuredImageId && !publishData.featuredImageUrl) {
+          if (!publishData.featuredImageUrl) {
             console.warn('⚠️ ADVERTENCIA: No hay imagen destacada para enviar a WordPress')
-          } else if (publishData.featuredImageId) {
-            console.log('✅ Imagen destacada con ID:', publishData.featuredImageId)
           } else {
-            console.log('⚠️ Imagen destacada solo con URL (sin ID):', publishData.featuredImageUrl)
+            console.log('✅ Imagen destacada (URL):', publishData.featuredImageUrl)
           }
           
           // VERIFICACIÓN: Asegurar que el idioma del contenido coincide con el langCode

@@ -193,6 +193,12 @@ export function WordPressTab({
               alt="Imagen destacada" 
               className="w-full h-40 object-cover"
             />
+            {/* Badge con ID de la imagen */}
+            {wordpress.wpFeaturedImageId && (
+              <div className="absolute top-2 left-2 bg-blue-500 text-white px-2.5 py-1 rounded-md text-xs font-semibold shadow-lg">
+                ID: {wordpress.wpFeaturedImageId}
+              </div>
+            )}
             <button
               onClick={() => {
                 wordpress.setWpFeaturedImage('')
@@ -268,7 +274,7 @@ export function WordPressTab({
                         })
                         wordpress.setWpFeaturedImage(img.url)
                         wordpress.setWpFeaturedImageId(img.id)
-                        console.log('✅ [WORDPRESS-TAB] Imagen seleccionada - ID guardado:', img.id)
+                        console.log('✅ [WORDPRESS-TAB] Imagen seleccionada:', img.url)
                         setOpenImageDialog(false)
                         setImageSearchTerm('')
                       }}

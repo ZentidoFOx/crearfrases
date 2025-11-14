@@ -48,7 +48,12 @@ export function createArticleHandlers(props: ArticleHandlersProps) {
       // Agregar imagen destacada si existe
       if (wordpress?.wpFeaturedImage) {
         wpData.featured_image_url = wordpress.wpFeaturedImage
-        console.log('💾 Guardando imagen destacada:', wordpress.wpFeaturedImage)
+        if (wordpress?.wpFeaturedImageId) {
+          wpData.featured_image_id = wordpress.wpFeaturedImageId
+          console.log('💾 Guardando imagen destacada con ID:', wordpress.wpFeaturedImageId)
+        } else {
+          console.log('💾 Guardando imagen destacada (sin ID):', wordpress.wpFeaturedImage)
+        }
       }
       
       // Agregar categorías si existen

@@ -294,24 +294,13 @@ export async function publishToWordPress(
     }
     
     // 📊 PASO 4: Procesar imagen destacada (60-75%)
-    let featuredMediaId: number | null = null
     if (data.featuredImageUrl) {
       onProgress?.('image', 62, 'Procesando imagen destacada...')
       
+      // 🔥 Si tenemos ID, usarlo como featured_media
       if (data.featuredImageId) {
-        // Si ya tenemos el ID, usarlo directamente
-        featuredMediaId = data.featuredImageId
-        console.log('✅ Usando ID de imagen existente:', data.featuredImageId)
-      } else {
-        // Si no tenemos ID, intentar subir la imagen
-        console.log('📤 Subiendo imagen a WordPress:', data.featuredImageUrl)
-        featuredMediaId = await uploadImageToWordPress(data.featuredImageUrl, siteUrl, credentials)
-        
-        if (featuredMediaId) {
-          console.log('✅ Imagen subida exitosamente - ID:', featuredMediaId)
-        } else {
-          console.warn('⚠️ No se pudo subir la imagen, se guardará solo la URL')
-        }
+        postData.featured_media = data.featuredImageId
+        console.log('🖼️ Imagen destacada configurada con ID:', data.featuredImageId)
       }
       
       // Guardar la URL en meta data para referencia
@@ -320,11 +309,7 @@ export async function publishToWordPress(
         _featured_image_url: data.featuredImageUrl
       }
       
-      // Si tenemos ID, establecerlo como featured_media
-      if (featuredMediaId) {
-        postData.featured_media = featuredMediaId
-        console.log('🖼️ Imagen destacada configurada con ID:', featuredMediaId)
-      }
+      console.log('🖼️ Imagen destacada (URL):', data.featuredImageUrl)
     }
     
     console.log(`🌍 Idioma configurado: ${language} (${locale})`);

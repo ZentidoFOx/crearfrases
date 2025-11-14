@@ -101,9 +101,12 @@ export interface PlannerArticle extends PlannerArticleData {
  */
 class PlannerArticlesService {
   private baseURL: string
+  private proxyURL: string
 
   constructor() {
     this.baseURL = `${API_CONFIG.baseURL}/articles`
+    // Use local proxy to bypass CORS
+    this.proxyURL = '/api/proxy/articles'
   }
 
   /**
@@ -128,14 +131,14 @@ class PlannerArticlesService {
   async create(articleData: PlannerArticleData): Promise<PlannerArticle> {
     try {
       console.log('📤 [API] Enviando datos del artículo')
-      console.log('🌐 [API] URL:', this.baseURL)
+      console.log('🌐 [API] URL:', this.proxyURL)
       console.log('🔍 [API] Content es HTML?')
       console.log('   - Tiene <h2>:', articleData.content.includes('<h2>'))
       console.log('   - Tiene <p>:', articleData.content.includes('<p>'))
       console.log('   - Tiene ## (markdown):', articleData.content.includes('##'))
       console.log('📄 [API] Content (primeros 300 chars):', articleData.content.substring(0, 300))
       
-      const response = await fetch(this.baseURL, {
+      const response = await fetch(this.proxyURL, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify(articleData)
@@ -260,7 +263,7 @@ class PlannerArticlesService {
       
       console.log('✅ [API-UPDATE] Validación pasada, procediendo con actualización...')
       
-      const response = await fetch(`${this.baseURL}/${id}`, {
+      const response = await fetch(`${this.proxyURL}?id=${id}`, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
         body: JSON.stringify(articleData)
