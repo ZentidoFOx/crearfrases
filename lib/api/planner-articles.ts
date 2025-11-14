@@ -28,6 +28,7 @@ export interface PlannerArticleData {
   content_type?: 'planner' | 'manual' | 'imported'
   wordpress_post_id?: number
   featured_image_url?: string
+  featured_image_id?: number
   wordpress_categories?: WordPressCategory[]
   wordpress_status?: 'draft' | 'publish' | 'pending' | 'private' | 'future'
 }

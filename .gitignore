@@ -28,4 +28,4 @@ yarn-error.log*
 next-env.d.ts
 
 # backend (comentado para permitir acceso temporal)
- backend-php
+backend-php

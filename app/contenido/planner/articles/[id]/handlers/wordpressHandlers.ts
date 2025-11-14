@@ -29,6 +29,15 @@ export function createWordPressHandlers(props: WordPressHandlersProps) {
       return
     }
 
+    // 🔥 DEBUG: Verificar que la imagen destacada está disponible
+    console.log('🔍 [DEBUG] Estado de WordPress antes de publicar:', {
+      wpFeaturedImage: wordpress.wpFeaturedImage,
+      wpFeaturedImageId: wordpress.wpFeaturedImageId,
+      wpCategories: wordpress.wpCategories,
+      wpTags: wordpress.wpTags,
+      availableImages: wordpress.availableImages?.length || 0
+    })
+
     const statusText = postStatus === 'publish' ? 'publicar' : 'guardar como borrador'
     if (!window.confirm(`¿${statusText.charAt(0).toUpperCase() + statusText.slice(1)} este artículo en WordPress?`)) return
 
@@ -175,11 +184,19 @@ export function createWordPressHandlers(props: WordPressHandlersProps) {
             categories: wordpress.wpCategories,
             tags: wordpress.wpTags,
             featuredImageUrl: wordpress.wpFeaturedImage,
-            featuredImageId: wordpress.wpFeaturedImageId || undefined,
+            featuredImageId: wordpress.wpFeaturedImageId,
             language: langCode,
             translations: Object.keys(publishedPosts).length > 0 ? publishedPosts : undefined,
             status: postStatus
           }
+          
+          // 🔥 DEBUG: Log del ID antes de publicar
+          console.log('🔍 [PUBLISH-DATA] featuredImageId:', {
+            wpFeaturedImageId: wordpress.wpFeaturedImageId,
+            type: typeof wordpress.wpFeaturedImageId,
+            isNull: wordpress.wpFeaturedImageId === null,
+            isUndefined: wordpress.wpFeaturedImageId === undefined
+          })
           
           console.log(`🚀 Publicando ${langCode.toUpperCase()}:`, {
             title: publishData.title,
@@ -188,8 +205,21 @@ export function createWordPressHandlers(props: WordPressHandlersProps) {
             focusKeyword: publishData.focusKeyword,
             contentLength: publishData.content?.length || 0,
             contentPreview: publishData.content?.substring(0, 150),
-            linkedWith: publishData.translations
+            linkedWith: publishData.translations,
+            featuredImageUrl: publishData.featuredImageUrl,
+            featuredImageId: publishData.featuredImageId,
+            categories: publishData.categories,
+            tags: publishData.tags
           })
+          
+          // 🔥 VERIFICACIÓN CRÍTICA: Asegurar que la imagen se está enviando
+          if (!publishData.featuredImageId && !publishData.featuredImageUrl) {
+            console.warn('⚠️ ADVERTENCIA: No hay imagen destacada para enviar a WordPress')
+          } else if (publishData.featuredImageId) {
+            console.log('✅ Imagen destacada con ID:', publishData.featuredImageId)
+          } else {
+            console.log('⚠️ Imagen destacada solo con URL (sin ID):', publishData.featuredImageUrl)
+          }
           
           // VERIFICACIÓN: Asegurar que el idioma del contenido coincide con el langCode
           if (langCode !== 'es' && publishData.content?.toLowerCase().includes('descubre')) {

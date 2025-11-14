@@ -107,6 +107,14 @@ class ArticleTranslation
             } elseif (in_array($key, ['keywords_array', 'sections_json', 'seo_data', 'wordpress_categories'])) {
                 $fields[] = "$key = :$key";
                 $values[$key] = is_array($value) ? json_encode($value) : $value;
+                
+                // 🔥 DEBUG: Log para wordpress_categories
+                if ($key === 'wordpress_categories') {
+                    error_log("[TRANSLATION-UPDATE] 📁 wordpress_categories detectado:");
+                    error_log("[TRANSLATION-UPDATE] - Tipo: " . gettype($value));
+                    error_log("[TRANSLATION-UPDATE] - Valor: " . json_encode($value));
+                    error_log("[TRANSLATION-UPDATE] - JSON: " . (is_array($value) ? json_encode($value) : $value));
+                }
             }
         }
         

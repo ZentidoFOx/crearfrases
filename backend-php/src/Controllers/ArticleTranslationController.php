@@ -189,6 +189,10 @@ class ArticleTranslationController
      */
     public static function update(int $articleId, string $language): void
     {
+        error_log("=== UPDATE TRANSLATION DEBUG ===");
+        error_log("Article ID: " . $articleId);
+        error_log("Language: " . $language);
+        
         $user = $_REQUEST['auth_user'] ?? null;
 
         if (!$user) {
@@ -196,6 +200,15 @@ class ArticleTranslationController
         }
 
         $data = json_decode(file_get_contents('php://input'), true);
+        error_log("Request data: " . json_encode($data));
+        
+        // 🔥 DEBUG: Verificar si vienen imágenes y categorías
+        if (isset($data['featured_image_url'])) {
+            error_log("📸 featured_image_url recibido: " . $data['featured_image_url']);
+        }
+        if (isset($data['wordpress_categories'])) {
+            error_log("📁 wordpress_categories recibido: " . json_encode($data['wordpress_categories']));
+        }
 
         if (!$data) {
             Response::error('Datos inválidos', 'INVALID_DATA', null, 400);

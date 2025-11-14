@@ -72,6 +72,57 @@ function markdownToHTML(markdown: string): string {
 }
 
 /**
+ * Sube una imagen a WordPress y retorna su ID
+ */
+async function uploadImageToWordPress(
+  imageUrl: string,
+  siteUrl: string,
+  credentials: WordPressCredentials
+): Promise<number | null> {
+  try {
+    console.log('📤 [UPLOAD] Intentando subir imagen:', imageUrl)
+    
+    // Descargar la imagen
+    const imageResponse = await fetch(imageUrl)
+    if (!imageResponse.ok) {
+      console.error('❌ [UPLOAD] Error descargando imagen:', imageResponse.status)
+      return null
+    }
+    
+    const imageBlob = await imageResponse.blob()
+    const fileName = imageUrl.split('/').pop() || 'image.jpg'
+    
+    console.log('📦 [UPLOAD] Imagen descargada:', fileName, 'Size:', imageBlob.size)
+    
+    // Crear FormData para subir la imagen
+    const formData = new FormData()
+    formData.append('file', imageBlob, fileName)
+    
+    // Subir a WordPress
+    const uploadResponse = await fetch(`${siteUrl}/wp-json/wp/v2/media`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${btoa(`${credentials.username}:${credentials.applicationPassword}`)}`
+      },
+      body: formData
+    })
+    
+    if (!uploadResponse.ok) {
+      const error = await uploadResponse.json()
+      console.error('❌ [UPLOAD] Error subiendo a WordPress:', error)
+      return null
+    }
+    
+    const uploadedMedia = await uploadResponse.json()
+    console.log('✅ [UPLOAD] Imagen subida exitosamente - ID:', uploadedMedia.id)
+    return uploadedMedia.id
+  } catch (error) {
+    console.error('❌ [UPLOAD] Error en uploadImageToWordPress:', error)
+    return null
+  }
+}
+
+/**
  * Obtiene el ID de categorías por nombre
  */
 async function getCategoryIds(
@@ -242,16 +293,44 @@ export async function publishToWordPress(
       }
     }
     
-    // Agregar imagen destacada si existe
-    if (data.featuredImageId) {
-      postData.featured_media = data.featuredImageId
-      console.log('🖼️ Configurando imagen destacada con ID:', data.featuredImageId)
+    // 📊 PASO 4: Procesar imagen destacada (60-75%)
+    let featuredMediaId: number | null = null
+    if (data.featuredImageUrl) {
+      onProgress?.('image', 62, 'Procesando imagen destacada...')
+      
+      if (data.featuredImageId) {
+        // Si ya tenemos el ID, usarlo directamente
+        featuredMediaId = data.featuredImageId
+        console.log('✅ Usando ID de imagen existente:', data.featuredImageId)
+      } else {
+        // Si no tenemos ID, intentar subir la imagen
+        console.log('📤 Subiendo imagen a WordPress:', data.featuredImageUrl)
+        featuredMediaId = await uploadImageToWordPress(data.featuredImageUrl, siteUrl, credentials)
+        
+        if (featuredMediaId) {
+          console.log('✅ Imagen subida exitosamente - ID:', featuredMediaId)
+        } else {
+          console.warn('⚠️ No se pudo subir la imagen, se guardará solo la URL')
+        }
+      }
+      
+      // Guardar la URL en meta data para referencia
+      postData.meta = {
+        ...postData.meta,
+        _featured_image_url: data.featuredImageUrl
+      }
+      
+      // Si tenemos ID, establecerlo como featured_media
+      if (featuredMediaId) {
+        postData.featured_media = featuredMediaId
+        console.log('🖼️ Imagen destacada configurada con ID:', featuredMediaId)
+      }
     }
     
     console.log(`🌍 Idioma configurado: ${language} (${locale})`);
     
-    // 📊 PASO 4: Publicando en WordPress (60-80%)
-    onProgress?.('publishing', 65, `Publicando en WordPress (${language})...`)
+    // 📊 PASO 5: Publicando en WordPress (75-85%)
+    onProgress?.('publishing', 75, `Publicando en WordPress (${language})...`)
     
     // Crear el post
     const response = await fetch(`${siteUrl}/wp-json/wp/v2/posts`, {
@@ -277,16 +356,16 @@ export async function publishToWordPress(
     
     const post = await response.json()
     
-    onProgress?.('publishing', 80, 'Post creado exitosamente')
+    onProgress?.('publishing', 85, 'Post creado exitosamente')
     console.log('✅ Post creado exitosamente:', {
       id: post.id,
       title: post.title.rendered,
       link: post.link
     })
     
-    // 📊 PASO 5: Actualizar SEO (80-100%)
+    // 📊 PASO 6: Actualizar SEO (85-100%)
     if (post.id) {
-      onProgress?.('seo', 85, 'Actualizando meta datos de Yoast SEO...')
+      onProgress?.('seo', 90, 'Actualizando meta datos de Yoast SEO...')
       console.log('📝 Actualizando meta datos de Yoast SEO...')
       await updateYoastMeta(siteUrl, post.id, {
         title: data.title,

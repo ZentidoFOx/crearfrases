@@ -15,6 +15,7 @@ interface UseArticleAutoSaveProps {
   autoSaveTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
   setArticle: (article: PlannerArticle | null) => void
   setCurrentTranslationData: (data: any) => void
+  wordpress?: any
 }
 
 export function useArticleAutoSave({
@@ -29,7 +30,8 @@ export function useArticleAutoSave({
   lastSavedContentRef,
   autoSaveTimeoutRef,
   setArticle,
-  setCurrentTranslationData
+  setCurrentTranslationData,
+  wordpress
 }: UseArticleAutoSaveProps) {
   
   // Auto-guardado para artículos originales
@@ -54,7 +56,8 @@ export function useArticleAutoSave({
           title: data.title
         })
         
-        await plannerArticlesService.update(articleId, {
+        // 🔥 Preparar datos de WordPress para guardar
+        const wpData: any = {
           title: data.title,
           content: data.content,
           keyword: data.keyword,
@@ -62,7 +65,36 @@ export function useArticleAutoSave({
           meta_description: data.meta_description,
           objective_phrase: data.objective_phrase,
           keywords_array: data.keywords_array
-        })
+        }
+        
+        // 🔥 Agregar imagen destacada si existe
+        if (wordpress?.wpFeaturedImage) {
+          wpData.featured_image_url = wordpress.wpFeaturedImage
+          if (wordpress?.wpFeaturedImageId) {
+            wpData.featured_image_id = wordpress.wpFeaturedImageId
+            console.log('💾 Auto-guardando imagen destacada con ID:', wordpress.wpFeaturedImageId)
+          } else {
+            console.log('💾 Auto-guardando imagen destacada (sin ID):', wordpress.wpFeaturedImage)
+          }
+        }
+        
+        // 🔥 Agregar categorías si existen
+        if (wordpress?.wpCategories?.length > 0) {
+          const categoriesForDB = wordpress.availableCategories
+            ?.filter((cat: any) => wordpress.wpCategories.includes(cat.name))
+            .map((cat: any) => ({
+              id: cat.id,
+              name: cat.name,
+              slug: cat.slug
+            }))
+          
+          if (categoriesForDB?.length > 0) {
+            wpData.wordpress_categories = categoriesForDB
+            console.log('💾 Auto-guardando categorías:', categoriesForDB)
+          }
+        }
+        
+        await plannerArticlesService.update(articleId, wpData)
       },
       onError: (error) => {
         console.error('❌ Error auto-guardando artículo:', error)
@@ -92,7 +124,8 @@ export function useArticleAutoSave({
         
         console.log('🔄 Auto-guardando traducción...', data)
         
-        await plannerArticlesService.updateTranslation(articleId, currentLanguage, {
+        // 🔥 Preparar datos de WordPress para guardar
+        const wpData: any = {
           title: data.title,
           content: data.content,
           keyword: data.keyword,
@@ -100,7 +133,36 @@ export function useArticleAutoSave({
           meta_description: data.meta_description,
           objective_phrase: data.objective_phrase,
           keywords_array: data.keywords_array
-        })
+        }
+        
+        // 🔥 Agregar imagen destacada si existe
+        if (wordpress?.wpFeaturedImage) {
+          wpData.featured_image_url = wordpress.wpFeaturedImage
+          if (wordpress?.wpFeaturedImageId) {
+            wpData.featured_image_id = wordpress.wpFeaturedImageId
+            console.log('💾 Auto-guardando imagen destacada en traducción con ID:', wordpress.wpFeaturedImageId)
+          } else {
+            console.log('💾 Auto-guardando imagen destacada en traducción (sin ID):', wordpress.wpFeaturedImage)
+          }
+        }
+        
+        // 🔥 Agregar categorías si existen
+        if (wordpress?.wpCategories?.length > 0) {
+          const categoriesForDB = wordpress.availableCategories
+            ?.filter((cat: any) => wordpress.wpCategories.includes(cat.name))
+            .map((cat: any) => ({
+              id: cat.id,
+              name: cat.name,
+              slug: cat.slug
+            }))
+          
+          if (categoriesForDB?.length > 0) {
+            wpData.wordpress_categories = categoriesForDB
+            console.log('💾 Auto-guardando categorías en traducción:', categoriesForDB)
+          }
+        }
+        
+        await plannerArticlesService.updateTranslation(articleId, currentLanguage, wpData)
       },
       onError: (error) => {
         console.error('❌ Error auto-guardando traducción:', error)
@@ -111,15 +173,25 @@ export function useArticleAutoSave({
     }
   )
 
-  // Auto-guardado directo para editedContent
+  // Auto-guardado directo para editedContent, imágenes y categorías
   useEffect(() => {
-    if (!editedContent || editedContent === lastSavedContentRef.current || !article || !articleId || isAutoSaving) {
+    if (!article || !articleId || isAutoSaving) {
       return
     }
 
-    console.log('📝 [AUTO-SAVE-DIRECT] Contenido cambió, programando guardado...', {
-      length: editedContent.length,
-      lastSavedLength: lastSavedContentRef.current.length
+    // 🔥 Verificar si hay cambios en contenido, imagen o categorías
+    const hasContentChange = editedContent && editedContent !== lastSavedContentRef.current
+    const hasImageChange = wordpress?.wpFeaturedImage
+    const hasCategoryChange = wordpress?.wpCategories?.length > 0
+
+    if (!hasContentChange && !hasImageChange && !hasCategoryChange) {
+      return
+    }
+
+    console.log('📝 [AUTO-SAVE-DIRECT] Cambios detectados, programando guardado...', {
+      contentChanged: hasContentChange,
+      imageChanged: hasImageChange,
+      categoryChanged: hasCategoryChange
     })
 
     // Cancelar timeout anterior
@@ -132,18 +204,56 @@ export function useArticleAutoSave({
     const timeout = setTimeout(async () => {
       try {
         setIsAutoSaving(true)
-        console.log('🔄 [AUTO-SAVE-DIRECT] Guardando contenido...')
+        console.log('🔄 [AUTO-SAVE-DIRECT] Guardando contenido, imagen y categorías...')
+
+        // 🔥 Preparar datos de WordPress para guardar
+        const wpData: any = {}
+        
+        // 🔥 Agregar contenido si cambió
+        if (editedContent && editedContent !== lastSavedContentRef.current) {
+          wpData.content = editedContent
+          console.log('💾 [AUTO-SAVE-DIRECT] Guardando contenido')
+        }
+        
+        // 🔥 Agregar imagen destacada si existe
+        if (wordpress?.wpFeaturedImage) {
+          wpData.featured_image_url = wordpress.wpFeaturedImage
+          if (wordpress?.wpFeaturedImageId) {
+            wpData.featured_image_id = wordpress.wpFeaturedImageId
+            console.log('💾 [AUTO-SAVE-DIRECT] Guardando imagen destacada con ID:', wordpress.wpFeaturedImageId)
+          } else {
+            console.log('💾 [AUTO-SAVE-DIRECT] Guardando imagen destacada (sin ID):', wordpress.wpFeaturedImage)
+          }
+        }
+        
+        // 🔥 Agregar categorías si existen
+        if (wordpress?.wpCategories?.length > 0) {
+          const categoriesForDB = wordpress.availableCategories
+            ?.filter((cat: any) => wordpress.wpCategories.includes(cat.name))
+            .map((cat: any) => ({
+              id: cat.id,
+              name: cat.name,
+              slug: cat.slug
+            }))
+          
+          if (categoriesForDB?.length > 0) {
+            wpData.wordpress_categories = categoriesForDB
+            console.log('💾 [AUTO-SAVE-DIRECT] Guardando categorías:', categoriesForDB)
+          }
+        }
+
+        // Solo guardar si hay datos para guardar
+        if (Object.keys(wpData).length === 0) {
+          console.log('⏭️ [AUTO-SAVE-DIRECT] No hay datos para guardar')
+          return
+        }
 
         if (currentTranslationData) {
           // Guardar traducción
-          await plannerArticlesService.updateTranslation(articleId, currentLanguage, {
-            content: editedContent
-          })
+          await plannerArticlesService.updateTranslation(articleId, currentLanguage, wpData)
         } else {
           // Guardar artículo original
-          await plannerArticlesService.update(articleId, {
-            content: editedContent
-          })
+          await plannerArticlesService.update(articleId, wpData)
         }
 
         lastSavedContentRef.current = editedContent
@@ -162,7 +272,7 @@ export function useArticleAutoSave({
         clearTimeout(timeout)
       }
     }
-  }, [editedContent, article, articleId, currentTranslationData, currentLanguage, isAutoSaving])
+  }, [editedContent, wordpress?.wpFeaturedImage, JSON.stringify(wordpress?.wpCategories), article, articleId, currentTranslationData, currentLanguage, isAutoSaving])
 
   // Debug logs
   useEffect(() => {

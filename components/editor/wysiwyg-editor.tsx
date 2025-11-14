@@ -46,6 +46,11 @@ export function WysiwygEditor({
   const [lastContent, setLastContent] = useState('')
   const [showCursor, setShowCursor] = useState(false)
   const [markdownContent, setMarkdownContent] = useState('')
+  
+  // 🔥 Estados para menú contextual
+  const [contextMenu, setContextMenu] = useState<{x: number, y: number, visible: boolean}>({x: 0, y: 0, visible: false})
+  const [workInProgress, setWorkInProgress] = useState<Set<string>>(new Set())
+  const [savedContextSelection, setSavedContextSelection] = useState<Range | null>(null)
 
   // 🔥 Función para convertir Markdown a HTML usando react-markdown
   const markdownToHtml = (markdown: string): string => {
@@ -360,6 +365,18 @@ export function WysiwygEditor({
     document.execCommand('defaultParagraphSeparator', false, 'p')
   }, [])
 
+  // Cerrar menú contextual cuando se hace click fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contextMenu.visible) {
+        closeContextMenu()
+      }
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [contextMenu.visible])
+
   const cmd = (c: string, v?: string) => {
     document.execCommand(c, false, v)
     const editor = document.getElementById('wysiwyg-editor')
@@ -382,6 +399,243 @@ export function WysiwygEditor({
       setShowImages(false)
     } catch (error) {
       console.error('Error insertando imagen:', error)
+    }
+  }
+
+  // 🔥 Funciones para menú contextual
+  const [clickedElement, setClickedElement] = useState<HTMLElement | null>(null)
+  
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    
+    // Guardar el elemento donde se hizo click
+    const target = e.target as HTMLElement
+    setClickedElement(target)
+    
+    // Guardar la selección actual
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      setSavedContextSelection(selection.getRangeAt(0).cloneRange())
+    }
+    
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      visible: true
+    })
+  }
+
+  const closeContextMenu = () => {
+    // Remover resalte anterior
+    const previousHighlight = document.querySelector('.context-menu-highlight')
+    if (previousHighlight) {
+      previousHighlight.classList.remove('context-menu-highlight')
+    }
+    
+    setContextMenu({...contextMenu, visible: false})
+  }
+
+  const highlightSelectedElement = () => {
+    // Remover resalte anterior
+    const previousHighlight = document.querySelector('.context-menu-highlight')
+    if (previousHighlight) {
+      previousHighlight.classList.remove('context-menu-highlight')
+    }
+    
+    // Resaltar el elemento actual
+    const element = getSelectedElement()
+    if (element) {
+      element.classList.add('context-menu-highlight')
+      console.log('✨ Sección resaltada')
+    }
+  }
+
+  const addHeading = (level: 'h2' | 'h3') => {
+    const editor = document.getElementById('wysiwyg-editor')
+    if (!editor || !savedContextSelection) return
+    
+    try {
+      // Restaurar la selección
+      const selection = window.getSelection()
+      if (selection) {
+        selection.removeAllRanges()
+        selection.addRange(savedContextSelection)
+      }
+      
+      // Aplicar formato de encabezado
+      document.execCommand('formatBlock', false, `<${level}>`)
+      setContent(editor.innerHTML)
+      closeContextMenu()
+      console.log(`✅ Encabezado ${level} agregado`)
+    } catch (error) {
+      console.error('Error agregando encabezado:', error)
+    }
+  }
+
+  const addImageFromContext = () => {
+    // Guardar la selección y abrir modal de imágenes
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      setSavedContextSelection(selection.getRangeAt(0).cloneRange())
+    }
+    
+    setShowImages(true)
+    closeContextMenu()
+    console.log('📸 Abriendo selector de imágenes')
+  }
+
+  const toggleWorkInProgress = () => {
+    const editor = document.getElementById('wysiwyg-editor')
+    if (!editor || !savedContextSelection) return
+    
+    try {
+      // Obtener el elemento padre (párrafo, encabezado, etc.)
+      const range = savedContextSelection
+      const container = range.commonAncestorContainer
+      const element = container.nodeType === 3 ? container.parentElement : container as HTMLElement
+      
+      if (!element) return
+      
+      // Generar ID único para el elemento
+      const elementId = `wip-${Date.now()}`
+      
+      // Verificar si ya está marcado
+      if (workInProgress.has(elementId)) {
+        // Desmarcar
+        element.classList.remove('work-in-progress')
+        element.removeAttribute('data-wip-id')
+        setWorkInProgress(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(elementId)
+          return newSet
+        })
+        console.log('✅ Marcado como "En Trabajo" removido')
+      } else {
+        // Marcar
+        element.classList.add('work-in-progress')
+        element.setAttribute('data-wip-id', elementId)
+        setWorkInProgress(prev => new Set(prev).add(elementId))
+        console.log('🔨 Marcado como "En Trabajo"')
+      }
+      
+      setContent(editor.innerHTML)
+      closeContextMenu()
+    } catch (error) {
+      console.error('Error marcando como en trabajo:', error)
+    }
+  }
+
+  const changeImage = () => {
+    // Guardar la imagen actual para reemplazarla
+    if (clickedElement && clickedElement.tagName === 'IMG') {
+      setClickedElement(clickedElement)
+    }
+    
+    setShowImages(true)
+    closeContextMenu()
+    console.log('🖼️ Abriendo selector para cambiar imagen')
+  }
+
+  const hasImage = () => {
+    // Verificar si hay imagen en la sección
+    if (clickedElement?.tagName === 'IMG') return true
+    
+    if (savedContextSelection) {
+      const range = savedContextSelection
+      const container = range.commonAncestorContainer
+      const element = container.nodeType === 3 ? container.parentElement : container as HTMLElement
+      
+      if (element) {
+        const imageElement = element.querySelector('img')
+        if (imageElement || element.tagName === 'IMG') return true
+      }
+    }
+    
+    return false
+  }
+
+  const getSelectedElement = () => {
+    // Obtener el elemento seleccionado
+    if (clickedElement?.tagName === 'IMG') {
+      return clickedElement
+    }
+    
+    if (savedContextSelection) {
+      const range = savedContextSelection
+      const container = range.commonAncestorContainer
+      const element = container.nodeType === 3 ? container.parentElement : container as HTMLElement
+      return element
+    }
+    
+    return null
+  }
+
+  const deleteImage = () => {
+    const editor = document.getElementById('wysiwyg-editor')
+    
+    try {
+      // Si se hizo click en una imagen, eliminarla directamente
+      if (clickedElement && clickedElement.tagName === 'IMG') {
+        clickedElement.remove()
+        setContent(editor?.innerHTML || '')
+        console.log('🗑️ Imagen eliminada')
+      } else if (editor && savedContextSelection) {
+        // Si no, buscar imagen en la sección
+        const range = savedContextSelection
+        const container = range.commonAncestorContainer
+        const element = container.nodeType === 3 ? container.parentElement : container as HTMLElement
+        
+        if (!element) return
+        
+        // Buscar la imagen más cercana
+        let imageElement = element.querySelector('img')
+        if (!imageElement && element.tagName === 'IMG') {
+          imageElement = element as HTMLImageElement
+        }
+        
+        if (imageElement) {
+          imageElement.remove()
+          setContent(editor.innerHTML)
+          console.log('🗑️ Imagen eliminada')
+        } else {
+          console.warn('⚠️ No se encontró imagen para eliminar')
+        }
+      }
+      
+      closeContextMenu()
+    } catch (error) {
+      console.error('Error eliminando imagen:', error)
+    }
+  }
+
+  const deleteSection = () => {
+    const editor = document.getElementById('wysiwyg-editor')
+    if (!editor || !savedContextSelection) return
+    
+    try {
+      // Obtener el elemento padre (párrafo, encabezado, etc.)
+      const range = savedContextSelection
+      const container = range.commonAncestorContainer
+      let element = container.nodeType === 3 ? container.parentElement : container as HTMLElement
+      
+      if (!element) return
+      
+      // Asegurar que sea un elemento de bloque (p, h1, h2, etc.)
+      while (element && element.id !== 'wysiwyg-editor' && !['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'DIV', 'BLOCKQUOTE', 'UL', 'OL'].includes(element.tagName)) {
+        element = element.parentElement as HTMLElement
+      }
+      
+      if (element && element.id !== 'wysiwyg-editor') {
+        element.remove()
+        setContent(editor.innerHTML)
+        console.log('🗑️ Sección eliminada')
+      } else {
+        console.warn('⚠️ No se puede eliminar esta sección')
+      }
+      
+      closeContextMenu()
+    } catch (error) {
+      console.error('Error eliminando sección:', error)
     }
   }
 
@@ -519,6 +773,35 @@ export function WysiwygEditor({
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
         
+        #wysiwyg-editor .work-in-progress {
+          background-color: #fef3c7;
+          border-left: 4px solid #f59e0b;
+          padding: 0.75em;
+          padding-left: 1em;
+          margin: 1em 0;
+          border-radius: 0.375rem;
+          position: relative;
+        }
+        
+        #wysiwyg-editor .work-in-progress::before {
+          content: "🔨 EN TRABAJO";
+          display: block;
+          font-size: 0.875em;
+          font-weight: 600;
+          color: #b45309;
+          margin-bottom: 0.5em;
+        }
+        
+        #wysiwyg-editor .context-menu-highlight {
+          background-color: #dbeafe;
+          border-left: 4px solid #3b82f6;
+          padding: 0.5em;
+          padding-left: 0.75em;
+          margin: 0.5em 0;
+          border-radius: 0.25rem;
+          box-shadow: inset 0 0 0 1px #93c5fd;
+        }
+        
         #wysiwyg-editor blockquote {
           border-left: 4px solid #e2e8f0;
           padding-left: 1em;
@@ -566,6 +849,7 @@ export function WysiwygEditor({
           contentEditable={!showCode}
           onInput={(e) => setContent(e.currentTarget.innerHTML)}
           onMouseUp={onMouseUp}
+          onContextMenu={handleContextMenu}
           className={`p-8 min-h-[500px] focus:outline-none ${showCode ? 'hidden' : ''}`}
           suppressContentEditableWarning
           style={{
@@ -726,6 +1010,116 @@ export function WysiwygEditor({
             </div>
           )}
         </div>
+      )}
+
+      {/* Menú Contextual */}
+      {contextMenu.visible && (
+        <>
+          {/* Overlay para cerrar menú */}
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={closeContextMenu}
+          />
+          
+          {/* Menú */}
+          <div 
+            className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150"
+            style={{ 
+              left: `${contextMenu.x}px`, 
+              top: `${contextMenu.y}px`,
+              minWidth: '200px'
+            }}
+            onMouseEnter={highlightSelectedElement}
+          >
+            {/* MENÚ PARA IMAGEN */}
+            {clickedElement?.tagName === 'IMG' ? (
+              <>
+                {/* Opción: Cambiar Imagen */}
+                <button
+                  onClick={changeImage}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center gap-2 border-b transition-colors"
+                >
+                  <ImageIcon className="h-4 w-4 text-blue-600" />
+                  <span className="text-gray-700">Cambiar Imagen</span>
+                </button>
+
+                {/* Opción: Eliminar Imagen */}
+                <button
+                  onClick={deleteImage}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-red-50 flex items-center gap-2 transition-colors"
+                >
+                  <span className="text-lg">🗑️</span>
+                  <span className="text-gray-700">Eliminar Imagen</span>
+                </button>
+              </>
+            ) : (
+              <>
+                {/* MENÚ PARA TEXTO */}
+                {/* Opción: Agregar Encabezado H2 */}
+                <button
+                  onClick={() => addHeading('h2')}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center gap-2 border-b transition-colors"
+                >
+                  <span className="text-lg">H2</span>
+                  <span className="text-gray-700">Encabezado 2</span>
+                </button>
+
+                {/* Opción: Agregar Encabezado H3 */}
+                <button
+                  onClick={() => addHeading('h3')}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center gap-2 border-b transition-colors"
+                >
+                  <span className="text-lg">H3</span>
+                  <span className="text-gray-700">Encabezado 3</span>
+                </button>
+
+                {/* Opción: Agregar Imagen */}
+                <button
+                  onClick={addImageFromContext}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-green-50 flex items-center gap-2 border-b transition-colors"
+                >
+                  <ImageIcon className="h-4 w-4 text-green-600" />
+                  <span className="text-gray-700">Agregar Imagen</span>
+                </button>
+
+                {/* Opción: Marcar En Trabajo */}
+                <button
+                  onClick={toggleWorkInProgress}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-yellow-50 flex items-center gap-2 border-b transition-colors"
+                >
+                  <span className="text-lg">🔨</span>
+                  <span className="text-gray-700">Marcar En Trabajo</span>
+                </button>
+
+                {/* Mostrar opciones de eliminar solo si hay contenido */}
+                {hasImage() && (
+                  <>
+                    {/* Separador */}
+                    <div className="border-t my-1" />
+
+                    {/* Opción: Eliminar Imagen */}
+                    <button
+                      onClick={deleteImage}
+                      className="w-full px-4 py-2.5 text-left text-sm hover:bg-red-50 flex items-center gap-2 border-b transition-colors"
+                    >
+                      <span className="text-lg">🖼️</span>
+                      <span className="text-gray-700">Eliminar Imagen</span>
+                    </button>
+                  </>
+                )}
+
+                {/* Opción: Eliminar Sección */}
+                <button
+                  onClick={deleteSection}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-red-50 flex items-center gap-2 transition-colors"
+                >
+                  <span className="text-lg">🗑️</span>
+                  <span className="text-gray-700">Eliminar Sección</span>
+                </button>
+              </>
+            )}
+          </div>
+        </>
       )}
     </div>
   )

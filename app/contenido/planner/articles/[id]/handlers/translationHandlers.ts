@@ -58,6 +58,7 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
     if (!article.available_languages?.includes(langCode)) {
       console.log(`📝 [LANGUAGE] No existe traducción para ${langCode}, mostrando editor vacío`)
       setCurrentLanguage(langCode)
+      // 🔥 IMPORTANTE: Usar SIEMPRE las imágenes y categorías del idioma original
       setCurrentTranslationData({
         ...article,
         language: langCode,
@@ -67,7 +68,10 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
         keyword: '',
         meta_description: '',
         slug: '',
-        needsTranslation: true // Flag para mostrar mensaje
+        needsTranslation: true, // Flag para mostrar mensaje
+        // 🔥 Mantener imágenes y categorías del idioma original
+        featured_image_url: article.featured_image_url,
+        wordpress_categories: article.wordpress_categories
       })
       setEditedContent('')
       setEditorKey(prev => prev + 1)
@@ -89,6 +93,7 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
       
       // Crear objeto con datos de la traducción para mostrar en el UI
       // 🔥 PRIORIZAR seo_data para campos traducidos
+      // 🔥 IMPORTANTE: Usar SIEMPRE las imágenes y categorías del idioma original
       setCurrentTranslationData({
         ...article,
         title: translation.title,
@@ -101,7 +106,10 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
         content: translation.content,
         seo_data: translation.seo_data,
         word_count: translation.word_count,
-        language: translation.language
+        language: translation.language,
+        // 🔥 Mantener imágenes y categorías del idioma original
+        featured_image_url: article.featured_image_url,
+        wordpress_categories: article.wordpress_categories
       })
       
       setEditedContent(translation.content || '')
@@ -416,6 +424,7 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
       
       // Actualizar currentTranslationData con TODOS los campos de la traducción guardada
       // 🔥 USAR DATOS DE seo_data como prioridad para campos traducidos
+      // 🔥 IMPORTANTE: Usar SIEMPRE las imágenes y categorías del idioma original
       setCurrentTranslationData({
         ...reloadedArticle,
         title: savedTranslation.title,
@@ -428,7 +437,10 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
         content: savedTranslation.content,
         seo_data: savedTranslation.seo_data,
         word_count: savedTranslation.word_count,
-        language: targetLangCode
+        language: targetLangCode,
+        // 🔥 Mantener imágenes y categorías del idioma original
+        featured_image_url: reloadedArticle.featured_image_url,
+        wordpress_categories: reloadedArticle.wordpress_categories
       })
       
       console.log('🎯 [TRANSLATE] Estado actualizado con traducción completa:', {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { wordpressAnalyticsService } from '@/lib/api/wordpress-analytics'
 import { Category } from '../types'
 
@@ -29,6 +29,10 @@ export const useWordPress = (
   const [isPublishing, setIsPublishing] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   
+  // 🔥 Guardar referencias previas para detectar cambios reales
+  const prevFeaturedImageRef = useRef<string | undefined>(undefined)
+  const prevCategoriesRef = useRef<Array<{ id: number; name: string; slug: string }> | undefined>(undefined)
+  
   // Categories search
   const [availableCategories, setAvailableCategories] = useState<Category[]>([])
   const [isLoadingCategories, setIsLoadingCategories] = useState(false)
@@ -49,31 +53,51 @@ export const useWordPress = (
         categories: articleData.wordpress_categories
       })
       
+      // 🔥 IMPORTANTE: Solo actualizar si hay valores reales y son diferentes a los anteriores
       // Restaurar imagen destacada
-      if (articleData.featured_image_url) {
+      if (articleData.featured_image_url && articleData.featured_image_url !== prevFeaturedImageRef.current) {
         setWpFeaturedImage(articleData.featured_image_url)
-        console.log('📸 Imagen destacada restaurada:', articleData.featured_image_url)
-      } else {
-        // Limpiar si no hay imagen
-        setWpFeaturedImage('')
-        setWpFeaturedImageId(null)
+        prevFeaturedImageRef.current = articleData.featured_image_url
+        
+        // 🔥 Extraer ID de la URL si es posible (formato: /wp-content/uploads/...?id=123)
+        // O buscar en availableImages si la URL coincide
+        const urlParams = new URL(articleData.featured_image_url, 'http://localhost').searchParams
+        const idFromUrl = urlParams.get('id')
+        if (idFromUrl) {
+          setWpFeaturedImageId(parseInt(idFromUrl))
+          console.log('📸 Imagen destacada restaurada con ID:', idFromUrl)
+        } else {
+          // Buscar en availableImages por URL
+          const matchingImage = availableImages.find(img => img.url === articleData.featured_image_url)
+          if (matchingImage) {
+            setWpFeaturedImageId(matchingImage.id)
+            console.log('📸 Imagen destacada restaurada con ID:', matchingImage.id)
+          } else {
+            console.log('📸 Imagen destacada restaurada (sin ID):', articleData.featured_image_url)
+          }
+        }
       }
+      // Si no hay imagen, NO hacer nada (mantener la actual)
       
       // Restaurar categorías
-      if (articleData.wordpress_categories && Array.isArray(articleData.wordpress_categories)) {
+      if (articleData.wordpress_categories && Array.isArray(articleData.wordpress_categories) && articleData.wordpress_categories.length > 0) {
         const categoryNames = articleData.wordpress_categories.map(cat => cat.name)
-        setWpCategories(categoryNames)
-        console.log('📁 Categorías restauradas:', categoryNames)
-      } else {
-        // Limpiar si no hay categorías
-        setWpCategories([])
+        const prevCategoryNames = prevCategoriesRef.current?.map(cat => cat.name) || []
+        
+        // Solo actualizar si las categorías son diferentes
+        if (JSON.stringify(categoryNames) !== JSON.stringify(prevCategoryNames)) {
+          setWpCategories(categoryNames)
+          prevCategoriesRef.current = articleData.wordpress_categories
+          console.log('📁 Categorías restauradas:', categoryNames)
+        }
       }
+      // Si no hay categorías, NO hacer nada (mantener las actuales)
       
       if (!isInitialized) {
         setIsInitialized(true)
       }
     }
-  }, [articleData])
+  }, [articleData?.featured_image_url, articleData?.wordpress_categories, isInitialized])
 
   // Load categories on mount
   useEffect(() => {
@@ -191,6 +215,12 @@ export const useWordPress = (
     }
   }
 
+  // 🔥 Wrapper para setWpFeaturedImageId con logging
+  const setWpFeaturedImageIdWithLogging = (id: number | null) => {
+    console.log('📸 [useWordPress] setWpFeaturedImageId llamado con:', id)
+    setWpFeaturedImageId(id)
+  }
+
   return {
     wpCategories,
     setWpCategories,
@@ -199,7 +229,7 @@ export const useWordPress = (
     wpFeaturedImage,
     setWpFeaturedImage,
     wpFeaturedImageId,
-    setWpFeaturedImageId,
+    setWpFeaturedImageId: setWpFeaturedImageIdWithLogging,
     isPublishing,
     setIsPublishing,
     availableCategories,

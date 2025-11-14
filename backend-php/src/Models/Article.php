@@ -201,13 +201,16 @@ class Article
         if (isset($data['featured_image_url'])) {
             $fields[] = "featured_image_url = ?";
             $params[] = $data['featured_image_url'];
+            error_log("[ARTICLE-UPDATE] 📸 featured_image_url: " . $data['featured_image_url']);
         }
         
         if (isset($data['wordpress_categories'])) {
             $fields[] = "wordpress_categories = ?";
-            $params[] = is_array($data['wordpress_categories']) 
+            $categoriesJson = is_array($data['wordpress_categories']) 
                 ? json_encode($data['wordpress_categories']) 
                 : $data['wordpress_categories'];
+            $params[] = $categoriesJson;
+            error_log("[ARTICLE-UPDATE] 📁 wordpress_categories JSON: " . $categoriesJson);
         }
         
         if (isset($data['wordpress_status'])) {

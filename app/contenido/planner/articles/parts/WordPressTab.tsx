@@ -261,8 +261,14 @@ export function WordPressTab({
                     <button
                       key={img.id}
                       onClick={() => {
+                        console.log('🖼️ [WORDPRESS-TAB] Seleccionando imagen:', {
+                          id: img.id,
+                          url: img.url,
+                          title: img.title
+                        })
                         wordpress.setWpFeaturedImage(img.url)
                         wordpress.setWpFeaturedImageId(img.id)
+                        console.log('✅ [WORDPRESS-TAB] Imagen seleccionada - ID guardado:', img.id)
                         setOpenImageDialog(false)
                         setImageSearchTerm('')
                       }}

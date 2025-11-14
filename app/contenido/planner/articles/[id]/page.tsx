@@ -44,6 +44,14 @@ export default function ArticleEditorPage() {
   // Datos del artículo actual (puede ser original o traducción)
   const displayArticle = articleState.currentTranslationData || articleState.article
   
+  // Hooks externos (necesarios antes del auto-guardado)
+  const optimization = useOptimization()
+  const wordpress = useWordPress(
+    articleState.article?.keywords_array || [], 
+    activeWebsite?.url,
+    displayArticle
+  )
+  
   // Hook de auto-guardado
   const autoSave = useArticleAutoSave({
     article: articleState.article,
@@ -57,16 +65,11 @@ export default function ArticleEditorPage() {
     lastSavedContentRef: articleState.lastSavedContentRef,
     autoSaveTimeoutRef: articleState.autoSaveTimeoutRef,
     setArticle: articleState.setArticle,
-    setCurrentTranslationData: articleState.setCurrentTranslationData
+    setCurrentTranslationData: articleState.setCurrentTranslationData,
+    wordpress
   })
   
-  // Hooks externos
-  const optimization = useOptimization()
-  const wordpress = useWordPress(
-    articleState.article?.keywords_array || [], 
-    activeWebsite?.url,
-    displayArticle
-  )
+  // Hooks externos (ya inicializados arriba)
   const languagesHook = useLanguages(activeWebsite?.url)
   
   // Handlers modulares
@@ -122,12 +125,12 @@ export default function ArticleEditorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       <Header />
       <Sidebar />
       
       {/* Main Content with left margin for sidebar */}
-      <main className="ml-20 pt-0">
+      <main className="ml-20 pt-0 flex-1 overflow-hidden flex flex-col">
         <ArticleHeader
           article={articleState.article}
           saving={articleState.saving}
@@ -161,9 +164,9 @@ export default function ArticleEditorPage() {
           onOptimizeReadability={optimizationHandlers.handleOptimizeReadability}
         />
 
-        <div className="flex h-[calc(100vh-60px)]">
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-0">
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            <div className="p-0 h-full overflow-y-auto">
               <div className="max-w-5xl mx-auto">
                 {((articleState.humanizing && !articleState.isStreamingHumanize) || (articleState.translating && !articleState.isStreamingTranslation)) ? (
                   // Skeleton cuando está humanizando o traduciendo SIN streaming
@@ -251,8 +254,8 @@ export default function ArticleEditorPage() {
             </div>
           </div>
 
-          <div className="w-96 border-l-2 border-gray-200 bg-white overflow-y-auto">
-            <div className="p-4">
+          <div className="w-96 border-l-2 border-gray-200 bg-white overflow-hidden flex flex-col">
+            <div className="p-4 overflow-y-auto flex-1">
               <div className="flex mb-6 bg-white border-2 border-gray-200 rounded-xl overflow-hidden">
                 <button
                   onClick={() => articleState.setActiveTab('analytics')}
