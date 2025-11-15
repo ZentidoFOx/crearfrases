@@ -274,17 +274,21 @@ export function useArticleAutoSave({
     }
   }, [editedContent, wordpress?.wpFeaturedImage, JSON.stringify(wordpress?.wpCategories), article, articleId, currentTranslationData, currentLanguage, isAutoSaving])
 
+  // Seleccionar el auto-save activo
+  const activeAutoSave = currentTranslationData ? autoSaveTranslation : autoSaveOriginal
+
   // Debug logs
   useEffect(() => {
-    console.log('📝 [DEBUG] editedContent cambió:', {
+    console.log('📝 [EDITOR-DEBUG] editedContent cambió:', {
       length: editedContent?.length || 0,
       preview: editedContent?.substring(0, 100) || 'vacío',
-      autoSaveEnabled: activeAutoSave ? 'sí' : 'no',
       hasUnsavedChanges: activeAutoSave?.hasUnsavedChanges || false,
       isSaving: activeAutoSave?.isSaving || false,
-      isAutoSaving
+      isAutoSaving,
+      isTranslation: !!currentTranslationData,
+      language: currentLanguage
     })
-  }, [editedContent, isAutoSaving])
+  }, [editedContent, isAutoSaving, activeAutoSave, currentTranslationData, currentLanguage])
 
   // Listeners para actividad del usuario
   useEffect(() => {
@@ -295,7 +299,7 @@ export function useArticleAutoSave({
     }
 
     const events = ['click', 'keydown', 'mousemove', 'focus', 'blur', 'input']
-    
+
     events.forEach(event => {
       document.addEventListener(event, handleUserActivity, { passive: true })
     })
@@ -305,12 +309,10 @@ export function useArticleAutoSave({
         document.removeEventListener(event, handleUserActivity)
       })
     }
-  }, [])
+  }, [activeAutoSave])
 
   // Auto-save al cambiar de pestaña o cerrar ventana
   useEffect(() => {
-    const activeAutoSave = currentTranslationData ? autoSaveTranslation : autoSaveOriginal
-    
     const handleBeforeUnload = () => {
       if (activeAutoSave.hasUnsavedChanges && !activeAutoSave.isSaving) {
         activeAutoSave.forceSave()
@@ -330,10 +332,7 @@ export function useArticleAutoSave({
       window.removeEventListener('beforeunload', handleBeforeUnload)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [currentTranslationData, autoSaveOriginal, autoSaveTranslation])
-
-  // Seleccionar el auto-save activo
-  const activeAutoSave = currentTranslationData ? autoSaveTranslation : autoSaveOriginal
+  }, [activeAutoSave])
 
   return {
     activeAutoSave,

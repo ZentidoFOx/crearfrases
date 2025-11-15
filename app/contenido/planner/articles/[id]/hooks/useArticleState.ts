@@ -222,13 +222,23 @@ export function useArticleState(articleId: number | null): ArticleState & Articl
     loadModels()
   }, [])
 
+  // 🔥 SOLO cargar contenido cuando se carga el artículo por primera vez
+  // NO sobrescribir cuando el usuario está editando
+  const isInitialLoad = useRef(true)
+
   useEffect(() => {
-    if (article?.content) {
-      console.log('📄 Cargando contenido del artículo (HTML)')
+    if (article?.content && isInitialLoad.current) {
+      console.log('📄 Cargando contenido inicial del artículo (HTML)')
       setEditedContent(article.content)
       setEditorKey(prev => prev + 1)
+      isInitialLoad.current = false
     }
-  }, [article?.content, articleId])
+  }, [article?.id]) // Solo cuando cambia el ID del artículo
+
+  // Resetear flag cuando cambia el articleId
+  useEffect(() => {
+    isInitialLoad.current = true
+  }, [articleId])
 
   // Restaurar estado de publicación cuando se carga el artículo
   useEffect(() => {

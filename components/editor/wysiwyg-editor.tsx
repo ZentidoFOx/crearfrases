@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { Bold, Italic, Underline, List, ListOrdered, Heading2, Heading3, Link2, Image as ImageIcon, Search, X, Loader2 } from 'lucide-react'
+import { Bold, Italic, Underline, List, ListOrdered, Heading2, Heading3, Link2, Image as ImageIcon, Search, X, Loader2, Sparkles, WandSparkles, AlignLeft, Maximize2, Minimize2, SpellCheck, Briefcase, Smile, ArrowRight, Target } from 'lucide-react'
 import { useWebsite } from '@/contexts/website-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,19 +10,29 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { textImprovementService, type ImprovementAction } from '@/lib/api/text-improvement-service'
+import { SelectionToolbar } from './SelectionToolbar'
 
 interface WysiwygEditorProps {
   initialContent?: string
   onChange?: (content: string) => void
   showImagePicker?: boolean
   className?: string
+  keyword?: string
+  articleTitle?: string
+  language?: string
+  modelId?: number
 }
 
-export function WysiwygEditor({ 
-  initialContent = '', 
+export function WysiwygEditor({
+  initialContent = '',
   onChange,
   showImagePicker = true,
-  className = ''
+  className = '',
+  keyword,
+  articleTitle,
+  language = 'es',
+  modelId
 }: WysiwygEditorProps) {
   const { activeWebsite } = useWebsite()
   const [content, setContent] = useState(initialContent)
@@ -51,6 +61,11 @@ export function WysiwygEditor({
   const [contextMenu, setContextMenu] = useState<{x: number, y: number, visible: boolean}>({x: 0, y: 0, visible: false})
   const [workInProgress, setWorkInProgress] = useState<Set<string>>(new Set())
   const [savedContextSelection, setSavedContextSelection] = useState<Range | null>(null)
+
+  // ✨ Estados para herramientas mágicas de IA
+  const [showMagicTools, setShowMagicTools] = useState(false)
+  const [improving, setImproving] = useState(false)
+  const [selectedText, setSelectedText] = useState('')
 
   // 🔥 Función para convertir Markdown a HTML usando react-markdown
   const markdownToHtml = (markdown: string): string => {
@@ -386,15 +401,72 @@ export function WysiwygEditor({
   const insertImage = (url: string, imageId: number) => {
     const editor = document.getElementById('wysiwyg-editor')
     if (!editor) return
-    
+
     try {
+      // 🔥 Si hay una selección guardada del menú contextual, restaurarla
+      if (savedContextSelection) {
+        const selection = window.getSelection()
+        if (selection) {
+          selection.removeAllRanges()
+          selection.addRange(savedContextSelection)
+        }
+        setSavedContextSelection(null)
+      }
+
       editor.focus()
-      const success = document.execCommand('insertImage', false, url)
+
+      // 🔥 Extraer nombre del archivo de la URL para generar alt
+      const urlParts = url.split('/')
+      const fileName = urlParts[urlParts.length - 1]
+
+      // Remover extensión y generar slug legible
+      const fileNameWithoutExt = fileName.replace(/\.(jpg|jpeg|png|gif|webp|svg)$/i, '')
+
+      // Convertir a texto legible: quitar guiones/guiones bajos, capitalizar primera letra
+      const altText = fileNameWithoutExt
+        .replace(/[-_]/g, ' ')  // Reemplazar - y _ por espacios
+        .replace(/\s+/g, ' ')   // Normalizar espacios múltiples
+        .trim()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ')
+
+      console.log('🖼️ [INSERT-IMAGE] Generando alt desde URL:', {
+        url,
+        fileName,
+        fileNameWithoutExt,
+        altText
+      })
+
+      // 🔥 Si se está reemplazando una imagen existente (desde menú contextual)
+      if (clickedElement && clickedElement.tagName === 'IMG') {
+        const imgElement = clickedElement as HTMLImageElement
+        imgElement.src = url
+        imgElement.alt = altText
+        console.log('✅ [REPLACE-IMAGE] Imagen reemplazada con nuevo alt:', altText)
+        setClickedElement(null)
+      } else {
+        // Insertar imagen nueva usando execCommand
+        const success = document.execCommand('insertImage', false, url)
+
+        if (success) {
+          // 🔥 Agregar atributo alt a la imagen recién insertada
+          // Buscar la última imagen insertada (la más reciente)
+          const images = editor.querySelectorAll('img')
+          const lastImage = images[images.length - 1] as HTMLImageElement
+
+          if (lastImage && lastImage.src === url) {
+            lastImage.alt = altText
+            console.log('✅ [INSERT-IMAGE] Alt agregado:', altText)
+          }
+        }
+      }
+
       setContent(editor.innerHTML)
-      
+
       // Marcar imagen como usada
       setUsedImages(prev => new Set(prev).add(imageId))
-      
+
       // Cerrar modal (mantener búsqueda para próxima vez)
       setShowImages(false)
     } catch (error) {
@@ -1121,6 +1193,9 @@ export function WysiwygEditor({
           </div>
         </>
       )}
+
+      {/* ✨ Magic Selection Toolbar - DISABLED */}
+      {/* <SelectionToolbar editorId="wysiwyg-editor" keyword={keyword} articleTitle={articleTitle} language={language} modelId={modelId} onTextReplaced={() => { const editor = document.getElementById('wysiwyg-editor'); if (editor) { setContent(editor.innerHTML); console.log('✨ [MAGIC-TOOLBAR] Texto reemplazado, contenido actualizado'); } }} /> */}
     </div>
   )
 }

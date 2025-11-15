@@ -145,20 +145,34 @@ export function createTranslationHandlers(props: TranslationHandlersProps) {
       setCurrentTranslationStep('preparing')
       setTranslationProgress(10)
       
-      // Usar contenido editado o contenido original del artículo
-      const htmlContent = editedContent && editedContent.trim().length > 0 
-        ? editedContent 
-        : article.content
-      
+      // 🔥 SIEMPRE usar editedContent (contenido actual del editor WYSIWYG)
+      const htmlContent = editedContent || article.content
+
+      console.log('🔍 [TRANSLATE-DEBUG] ===== VERIFICANDO FUENTES =====')
+      console.log('  editedContent exists:', !!editedContent)
+      console.log('  editedContent length:', editedContent?.length || 0)
+      console.log('  article.content exists:', !!article.content)
+      console.log('  article.content length:', article.content?.length || 0)
+      console.log('  🎯 USANDO:', editedContent ? 'editedContent (del editor)' : 'article.content (del DB)')
+      console.log('=============================================')
+
       if (!htmlContent || htmlContent.trim().length === 0) {
-        throw new Error('No hay contenido para traducir. El artículo original no tiene contenido.')
+        throw new Error('No hay contenido para traducir. El artículo no tiene contenido.')
       }
-      
-      console.log('📝 [TRANSLATE] Contenido a traducir:', {
-        source: editedContent && editedContent.trim().length > 0 ? 'editedContent' : 'article.content',
-        length: htmlContent.length,
-        preview: htmlContent.substring(0, 100) + '...'
-      })
+
+      // 🖼️ Verificar si hay imágenes en el contenido
+      const imageMatches = htmlContent.match(/<img[^>]*>/gi)
+      const imageCount = imageMatches ? imageMatches.length : 0
+
+      console.log('📝 [TRANSLATE] ===== CONTENIDO A TRADUCIR =====')
+      console.log('  Length:', htmlContent.length, 'chars')
+      console.log('  🖼️ Imágenes detectadas:', imageCount)
+      if (imageCount > 0) {
+        console.log('  🖼️ Tags img encontrados:', imageMatches)
+      }
+      console.log('  Preview (primeros 200 chars):', htmlContent.substring(0, 200) + '...')
+      console.log('  Preview (últimos 200 chars):', '...' + htmlContent.substring(htmlContent.length - 200))
+      console.log('=============================================')
       
       console.log('🚀 [TRANSLATE] Iniciando traducción en 2 PASOS')
       

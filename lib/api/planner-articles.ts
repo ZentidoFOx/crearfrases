@@ -17,9 +17,11 @@ export interface PlannerArticleData {
   keyword: string
   objective_phrase?: string
   keywords_array?: string[]
+  related_keywords?: string[]
   content: string
   sections_json?: SectionData[]
   meta_description?: string
+  seo_title?: string
   seo_data?: SEOAnalysisData
   word_count?: number
   status?: 'draft' | 'pending' | 'published' | 'rejected'
@@ -48,6 +50,12 @@ export interface SEOAnalysisData {
   }>
   keyword_density?: number
   readability_score?: number
+  // Campos adicionales para traducciones (Yoast SEO)
+  focus_keyword?: string
+  seo_title?: string
+  meta_description?: string
+  related_keywords?: string[]
+  slug?: string
 }
 
 export interface ArticleTranslation {

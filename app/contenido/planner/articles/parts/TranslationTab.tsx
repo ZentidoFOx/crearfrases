@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -16,6 +16,8 @@ import {
   CheckCheck
 } from 'lucide-react'
 import { translatorService, type TranslationData } from '@/lib/api/translator'
+import { PreTranslationValidator } from '@/components/seo/PreTranslationValidator'
+import { validateForTranslation } from '@/lib/utils/pre-translation-validator'
 
 interface Translation {
   language: string
@@ -34,6 +36,8 @@ interface TranslationTabProps {
   article: any
   editedContent: string
   onTranslationComplete?: (translation: Translation) => void
+  onContentUpdate?: (newContent: string) => void
+  modelId?: number
 }
 
 const AVAILABLE_LANGUAGES = [
@@ -54,14 +58,45 @@ const AVAILABLE_LANGUAGES = [
 export function TranslationTab({
   article,
   editedContent,
-  onTranslationComplete
+  onTranslationComplete,
+  onContentUpdate,
+  modelId
 }: TranslationTabProps) {
   const [translations, setTranslations] = useState<Translation[]>([])
   const [translating, setTranslating] = useState<string | null>(null)
   const [selectedTranslation, setSelectedTranslation] = useState<Translation | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
+  // 🚦 Validar artículo antes de traducir
+  const validation = useMemo(() => {
+    if (!article || !editedContent || !article.keyword) {
+      return {
+        isValid: false,
+        score: 0,
+        criticalIssues: [],
+        warnings: [],
+        infos: [],
+        allIssues: [],
+        canTranslate: false
+      }
+    }
+
+    return validateForTranslation({
+      title: article.title,
+      content: editedContent,
+      keyword: article.keyword,
+      h1Title: article.h1_title,
+      metaDescription: article.meta_description
+    })
+  }, [article, editedContent])
+
   const handleTranslate = async (languageCode: string, languageName: string) => {
+    // 🚫 BLOQUEAR si no pasa validación
+    if (!validation.canTranslate) {
+      alert(`⚠️ No se puede traducir aún\n\nDebes corregir ${validation.criticalIssues.length} problema(s) crítico(s) antes de traducir.\n\nLas traducciones heredan la estructura del artículo original, por lo que debe estar perfectamente optimizado.`)
+      return
+    }
+
     setTranslating(languageCode)
     
     try {
@@ -171,6 +206,17 @@ ${translation.content}
 
   return (
     <div className="space-y-3">
+      {/* 🚦 Pre-Translation Validator */}
+      {onContentUpdate && (
+        <PreTranslationValidator
+          content={editedContent}
+          keyword={article.keyword}
+          title={article.title}
+          onContentUpdate={onContentUpdate}
+          modelId={modelId}
+        />
+      )}
+
       {/* Available Languages Grid */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
         <div className="flex items-center gap-2 mb-4">

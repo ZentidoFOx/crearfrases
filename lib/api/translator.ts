@@ -253,20 +253,23 @@ SLUG: [slug con palabras clave del idioma destino]`
 
 🎯 FOCUS KEYWORD TRADUCIDO: "${basicFields.keyword}"
 
-🚨 IMPORTANTE: Cuando encuentres el keyword original "${data.keyword}" en el contenido, 
+🚨 IMPORTANTE: Cuando encuentres el keyword original "${data.keyword}" en el contenido,
 reemplázalo EXACTAMENTE por "${basicFields.keyword}" para mantener consistencia SEO.
 
-INSTRUCCIONES:
+INSTRUCCIONES CRÍTICAS:
 1. Traduce solo el texto dentro de los tags HTML
 2. Mantén todos los tags exactamente como están
 3. Cuando veas "${data.keyword}" → usa EXACTAMENTE "${basicFields.keyword}"
 4. NO uses variaciones del keyword, usa la traducción exacta
 5. Mantén la misma estructura y formato HTML
+6. 🖼️ CRÍTICO: Preserva TODOS los tags <img> con sus atributos completos (src, alt, width, height, etc.)
+7. 🖼️ NO remuevas, modifiques o traduzcas los atributos src de las imágenes
+8. 🖼️ Solo traduce el atributo "alt" de las imágenes si existe
 
 CONTENIDO A TRADUCIR:
 ${data.content}
 
-Responde solo con el HTML traducido usando "${basicFields.keyword}" consistentemente.`
+Responde solo con el HTML traducido usando "${basicFields.keyword}" consistentemente y preservando TODAS las imágenes.`
       
       console.log('📝 [TRANSLATE] Prompt construido, intentando streaming...')
 
@@ -423,13 +426,13 @@ Responde solo con el HTML traducido usando "${basicFields.keyword}" consistentem
 
 🎯 FOCUS KEYWORD TRADUCIDO: "${basicFields.keyword}"
 
-🚨 IMPORTANTE: Cuando encuentres el keyword original "${data.keyword}" en el contenido, 
+🚨 IMPORTANTE: Cuando encuentres el keyword original "${data.keyword}" en el contenido,
 reemplázalo EXACTAMENTE por "${basicFields.keyword}" para mantener consistencia SEO.
 
 CONTENIDO A TRADUCIR:
 ${data.content}
 
-INSTRUCCIONES - SOLO TRADUCIR:
+INSTRUCCIONES CRÍTICAS - SOLO TRADUCIR:
 1. MANTÉN todos los tags HTML exactamente como están
 2. NO agregues nuevas negritas, títulos o formato
 3. NO uses Markdown (**texto** o ## Título)
@@ -438,8 +441,11 @@ INSTRUCCIONES - SOLO TRADUCIR:
 6. NO uses variaciones del keyword, usa la traducción exacta
 7. NO agregues explicaciones ni comentarios
 8. NO modifiques la estructura HTML existente
+9. 🖼️ CRÍTICO: Preserva TODOS los tags <img> con sus atributos completos (src, alt, width, height, etc.)
+10. 🖼️ NO remuevas, modifiques o traduzcas los atributos src de las imágenes
+11. 🖼️ Solo traduce el atributo "alt" de las imágenes si existe
 
-Responde solo con el HTML traducido usando "${basicFields.keyword}" consistentemente.`
+Responde solo con el HTML traducido usando "${basicFields.keyword}" consistentemente y preservando TODAS las imágenes.`
 
       const response = await fetch('/api/ai/generate', {
         method: 'POST',
